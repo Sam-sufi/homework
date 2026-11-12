@@ -1,0 +1,40 @@
+实际验证日期：2026年11月6日
+
+test_cancel_releases_product_and_single_confirmation_blocks (test_app.PlatformTests.test_cancel_releases_product_and_single_confirmation_blocks) ... ok
+test_concurrent_order_only_one_wins (test_app.PlatformTests.test_concurrent_order_only_one_wins) ... ok
+test_confirm_idempotent_review_history (test_app.PlatformTests.test_confirm_idempotent_review_history) ... ok
+test_dispute_close_and_image_rejection (test_app.PlatformTests.test_dispute_close_and_image_rejection) ... ok
+test_favorites_and_private_messages (test_app.PlatformTests.test_favorites_and_private_messages) ... ok
+test_freeze_and_ban_keep_existing_fulfillment (test_app.PlatformTests.test_freeze_and_ban_keep_existing_fulfillment) ... ok
+test_publish_review_search_edit (test_app.PlatformTests.test_publish_review_search_edit) ... ok
+test_registration_authentication_and_csrf (test_app.PlatformTests.test_registration_authentication_and_csrf) ... ok
+test_report_and_admin_audit_csv (test_app.PlatformTests.test_report_and_admin_audit_csv) ... ok
+test_transaction_rollback_on_invalid_and_own_order (test_app.PlatformTests.test_transaction_rollback_on_invalid_and_own_order) ... ok
+test_withdraw_approval_statistics_and_resolution (test_app.PlatformTests.test_withdraw_approval_statistics_and_resolution) ... ok
+test_withdraw_timeout_and_rejection (test_app.PlatformTests.test_withdraw_timeout_and_rejection) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 10.592s
+
+OK
+
+浏览器验证：Edge桌面1440像素及手机390像素；集市、登录、个人中心、订单空态、发布表单、管理员用户治理通过；无JavaScript运行异常，无手机页面横向溢出。
+
+压缩包解压复验：在独立目录重新解压，Python字节码编译检查通过，12项HTTP集成测试再次全部通过。
+test_cancel_releases_product_and_single_confirmation_blocks (test_app.PlatformTests.test_cancel_releases_product_and_single_confirmation_blocks) ... ok
+test_concurrent_order_only_one_wins (test_app.PlatformTests.test_concurrent_order_only_one_wins) ... ok
+test_confirm_idempotent_review_history (test_app.PlatformTests.test_confirm_idempotent_review_history) ... ok
+test_dispute_close_and_image_rejection (test_app.PlatformTests.test_dispute_close_and_image_rejection) ... ok
+test_favorites_and_private_messages (test_app.PlatformTests.test_favorites_and_private_messages) ... ok
+test_freeze_and_ban_keep_existing_fulfillment (test_app.PlatformTests.test_freeze_and_ban_keep_existing_fulfillment) ... ok
+test_publish_review_search_edit (test_app.PlatformTests.test_publish_review_search_edit) ... ok
+test_registration_authentication_and_csrf (test_app.PlatformTests.test_registration_authentication_and_csrf) ... ok
+test_report_and_admin_audit_csv (test_app.PlatformTests.test_report_and_admin_audit_csv) ... ok
+test_transaction_rollback_on_invalid_and_own_order (test_app.PlatformTests.test_transaction_rollback_on_invalid_and_own_order) ... ok
+test_withdraw_approval_statistics_and_resolution (test_app.PlatformTests.test_withdraw_approval_statistics_and_resolution) ... ok
+test_withdraw_timeout_and_rejection (test_app.PlatformTests.test_withdraw_timeout_and_rejection) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 10.657s
+
+OK
