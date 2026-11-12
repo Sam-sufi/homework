@@ -1,0 +1,30 @@
+实际验证日期：2026年11月8日
+
+test_admin_hard_delete_review_and_tombstone (test_app.PlatformTests.test_admin_hard_delete_review_and_tombstone) ... ok
+test_admin_hide_and_unhide_review (test_app.PlatformTests.test_admin_hide_and_unhide_review) ... ok
+test_cancel_releases_product_and_single_confirmation_blocks (test_app.PlatformTests.test_cancel_releases_product_and_single_confirmation_blocks) ... ok
+test_concurrent_order_only_one_wins (test_app.PlatformTests.test_concurrent_order_only_one_wins) ... ok
+test_dispute_close_and_image_rejection (test_app.PlatformTests.test_dispute_close_and_image_rejection) ... ok
+test_favorites_and_private_messages (test_app.PlatformTests.test_favorites_and_private_messages) ... ok
+test_freeze_and_ban_keep_existing_fulfillment (test_app.PlatformTests.test_freeze_and_ban_keep_existing_fulfillment) ... ok
+test_legacy_database_migration (test_app.PlatformTests.test_legacy_database_migration) ... ok
+test_publish_review_search_edit (test_app.PlatformTests.test_publish_review_search_edit) ... ok
+test_registration_authentication_and_csrf (test_app.PlatformTests.test_registration_authentication_and_csrf) ... ok
+test_report_and_admin_audit_csv (test_app.PlatformTests.test_report_and_admin_audit_csv) ... ok
+test_review_append_only_text (test_app.PlatformTests.test_review_append_only_text) ... ok
+test_review_once_rating_and_averages (test_app.PlatformTests.test_review_once_rating_and_averages) ... ok
+test_review_tags_images_and_tag_filter (test_app.PlatformTests.test_review_tags_images_and_tag_filter) ... ok
+test_seller_page_aggregates_reviews_and_sold_items (test_app.PlatformTests.test_seller_page_aggregates_reviews_and_sold_items) ... ok
+test_seller_reply_edit_delete (test_app.PlatformTests.test_seller_reply_edit_delete) ... ok
+test_transaction_rollback_on_invalid_and_own_order (test_app.PlatformTests.test_transaction_rollback_on_invalid_and_own_order) ... ok
+test_withdraw_approval_statistics_and_review_visibility (test_app.PlatformTests.test_withdraw_approval_statistics_and_review_visibility) ... ok
+test_withdraw_timeout_and_rejection (test_app.PlatformTests.test_withdraw_timeout_and_rejection) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 50.616s
+
+OK
+
+浏览器验证：Edge 1360×1000。买家下单、卖家接单、双方确认、4.6 分评价（3 个标签 + 1 张图片）、卖家回复、追加文字、管理员隐藏/恢复/硬删除均通过；无 JavaScript 控制台错误。软隐藏后商品详情不再展示该评价且均分不计；硬删除后评价内容与图片全部移除，订单显示“评价已关闭”。卖家主页验证通过：匿名访问可见卖家均分/评价数/成交数、在售与已售商品、全部评价及标签筛选；已售商品详情仍展示评价且无下单按钮。另以 390×844 手机宽度检查集市、商品详情、登录页和卖家主页，页面宽度均为 390 像素，无横向溢出和控制台错误。
+
+迁移验证：旧库 1 条 5 星评价迁移为 5.0（rating=50），旧 review_history 表移除，review_tags、review_images、review_replies、review_deleted 新表生成。
