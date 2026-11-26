@@ -4,6 +4,20 @@
     集成测试  起真实 HTTP 服务，检查“请求 → 路由 → 业务 → 数据库”的整条链路；
     单元测试  直接调用函数，只检查这个函数本身的行为，失败时能定位到具体函数。
 
+文件地图（建议按这个顺序读）:
+    1. setUpModule / tearDownModule —— 整个模块只建一次演示库模板，各用例复制一份；
+    2. UnitCase / DbCase          —— 公共断言与小工具（raises / value / call /
+                                     rejected / last_notice）以及造数助手
+                                     （meeting / new_order / accepted / completed / publish）；
+    3. TestXxx 测试类             —— 按被测模块排列，顺序：
+                                     密码散列 → 文本校验 → 布尔/断言/时间
+                                     → 商品字段校验 → db 层 → 业务公共前置
+                                     → act 分发 → 商品动作 → 交易动作
+                                     → 撤回/争议 → 评价 → 收藏/咨询/举报 → 后台处置；
+    4. 每条 test_ 上方的一行注释   —— “# 验证 函数名：这条用例在验什么”，
+                                     用 # 而不是 docstring，是为了不改变
+                                     unittest -v 的输出格式。
+
 做法:
     * 纯函数（密码散列、文本校验、金额换算）不碰数据库，直接传参断言；
     * 需要数据库的函数用临时库：模块启动时建一次演示库，每个测试复制一份再改，
@@ -150,6 +164,7 @@ class DbCase(UnitCase):
 class TestPasswordHash(unittest.TestCase):
     """core.password_hash / valid_password：库里只存“盐:散列”，校验用恒定时间比较。"""
 
+    # 验证 password_hash：返回「盐:散列」，盐 32 位、散列 64 位十六进制，明文不落库。
     def test_hash_is_salt_and_digest_without_plain_text(self):
         stored = password_hash('Seller123!')
         salt, digest = stored.split(':')
@@ -157,9 +172,11 @@ class TestPasswordHash(unittest.TestCase):
         self.assertEqual(len(digest), 64)        # SHA-256 的十六进制
         self.assertNotIn('Seller123!', stored)
 
+    # 验证 password_hash：同一密码两次散列不同（每次换随机盐，防彩虹表）。
     def test_same_password_gets_a_new_salt_each_time(self):
         self.assertNotEqual(password_hash('abc12345'), password_hash('abc12345'))
 
+    # 验证 valid_password：只有完全一致才通过；大小写不同、少一位、空串都返回 False。
     def test_verify_accepts_only_the_right_password(self):
         stored = password_hash('Buyer123!')
         self.assertTrue(valid_password('Buyer123!', stored))
@@ -167,11 +184,13 @@ class TestPasswordHash(unittest.TestCase):
         self.assertFalse(valid_password('Buyer123', stored))
         self.assertFalse(valid_password('', stored))
 
+    # 验证 password_hash(salt=…)：固定盐时结果可复现，说明散列是确定性的。
     def test_verify_with_fixed_salt_is_reproducible(self):
         first = password_hash('pw123456', salt='a1b2c3')
         self.assertEqual(first, password_hash('pw123456', salt='a1b2c3'))
         self.assertEqual(first.split(':')[0], 'a1b2c3')
 
+    # 验证 valid_password：中文密码能往返校验（按 UTF-8 编码）。
     def test_unicode_password_round_trip(self):
         stored = password_hash('中文密码abc1')
         self.assertTrue(valid_password('中文密码abc1', stored))
@@ -181,19 +200,23 @@ class TestPasswordHash(unittest.TestCase):
 class TestTextRules(unittest.TestCase):
     """core.text：先查类型，再去首尾空白，最后按字符数查长度。"""
 
+    # 验证 text：首尾空白被去掉后返回（'  高等数学  ' → '高等数学'）。
     def test_returns_stripped_text(self):
         self.assertEqual(text({'title': '  高等数学  '}, 'title', 2, 50), '高等数学')
 
+    # 验证 text：None、数字、列表、字典、布尔都不是文本，一律抛 BusinessError。
     def test_rejects_missing_or_non_text(self):
         for value in (None, 1234, [], {}, True):
             with self.assertRaises(BusinessError):
                 text({'title': value}, 'title')
 
+    # 验证 text：长度按去空白后的字符数算，'  短  ' 只剩 1 字，按 2—50 字规则被拒。
     def test_length_is_measured_after_strip(self):
         with self.assertRaises(BusinessError) as ctx:
             text({'title': '  短  '}, 'title', 2, 50)
         self.assertIn('title长度应为2—50字', str(ctx.exception))
 
+    # 验证 text：长度上下界本身合法（2 字、50 字通过；1 字、51 字被拒）。
     def test_bounds_are_inclusive(self):
         self.assertEqual(text({'t': 'ab'}, 't', 2, 50), 'ab')
         self.assertEqual(len(text({'t': 'a' * 50}, 't', 2, 50)), 50)
@@ -206,6 +229,7 @@ class TestTextRules(unittest.TestCase):
 class TestBooleanAndNeed(unittest.TestCase):
     """core.boolean 只接受 JSON 布尔值；core.need 是业务校验的统一出口。"""
 
+    # 验证 boolean：只接受 JSON true/false；字符串 "true"、1、0、None 都被拒。
     def test_boolean_accepts_only_json_booleans(self):
         self.assertIs(boolean({'desired': True}, 'desired'), True)
         self.assertIs(boolean({'desired': False}, 'desired'), False)
@@ -213,12 +237,14 @@ class TestBooleanAndNeed(unittest.TestCase):
             with self.assertRaises(BusinessError):
                 boolean({'desired': value}, 'desired')
 
+    # 验证 need：条件为真返回 None，为假抛 BusinessError 且提示原样保留。
     def test_need_passes_and_raises_business_error(self):
         self.assertIsNone(need(True, '不该触发'))
         with self.assertRaises(BusinessError) as ctx:
             need(False, '库存不足')
         self.assertEqual(str(ctx.exception), '库存不足')
 
+    # 验证 now：返回秒级整数，与 time.time() 相差不超过 3 秒。
     def test_now_returns_integer_seconds(self):
         stamp = now()
         self.assertIsInstance(stamp, int)
@@ -238,47 +264,57 @@ class TestProductFields(UnitCase):
         data.update(kw)
         return data
 
+    # 验证 _product_fields：金额由「元」换成「分」，'12.50'→1250、35→3500、'0.01'→1、1000000→100000000。
     def test_price_is_converted_to_cents(self):
         cases = [('12.50', 1250), (35, 3500), ('0.01', 1), (1000000, 100000000)]
         for raw, expected in cases:
             self.assertEqual(_product_fields(self.payload(price=raw))[2], expected)
 
+    # 验证 _product_fields：Infinity/NaN/非数字/None/列表/字典统一报「价格必须为有限数字」，不再溢出成 500。
     def test_price_must_be_finite(self):
         for raw in ('Infinity', '-Infinity', 'NaN', 'abc', None, [], {}):
             self.assertEqual(self.raises(_product_fields, self.payload(price=raw),
                                          message='价格必须为有限数字'), '价格必须为有限数字')
 
+    # 验证 _product_fields：0、负数、超过 100 万元（含 1e12）都超出允许范围。
     def test_price_must_be_positive_and_within_limit(self):
         for raw in (0, -1, '-0.01', 1000000.01, 1e12):
             self.raises(_product_fields, self.payload(price=raw), message='价格必须大于0且不超过100万元')
 
+    # 验证 _product_fields：标题 2—50 字、描述 10—1000 字，越界时提示带字段名。
     def test_title_and_description_bounds(self):
         self.raises(_product_fields, self.payload(title='键'), message='title长度应为2—50字')
         self.raises(_product_fields, self.payload(description='太短了'), message='description长度应为10—1000字')
 
+    # 验证 _product_fields：不传图片时返回空串（图片是可选项）。
     def test_empty_image_is_allowed(self):
         self.assertEqual(_product_fields(self.payload())[3], '')
 
+    # 验证 _product_fields：合法 PNG / JPEG 的 data URL 原样返回（Base64 与文件头都正确）。
     def test_png_and_jpeg_images_are_accepted(self):
         png = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\n' + b'x' * 16).decode()
         jpeg = 'data:image/jpeg;base64,' + base64.b64encode(b'\xff\xd8\xff\xe0' + b'x' * 16).decode()
         self.assertEqual(_product_fields(self.payload(image=png))[3], png)
         self.assertEqual(_product_fields(self.payload(image=jpeg))[3], jpeg)
 
+    # 验证 _product_fields：GIF 前缀、普通 http 链接都不是允许的 data URL，一律拒绝。
     def test_image_prefix_must_be_png_or_jpeg(self):
         gif = 'data:image/gif;base64,' + base64.b64encode(b'GIF89a').decode()
         self.raises(_product_fields, self.payload(image=gif), message='仅支持PNG或JPEG图片')
         self.raises(_product_fields, self.payload(image='http://example.com/a.png'),
                     message='仅支持PNG或JPEG图片')
 
+    # 验证 _product_fields：前缀对但 Base64 含非法字符（@@@@）时报「图片格式无效」。
     def test_image_base64_must_be_valid(self):
         self.raises(_product_fields, self.payload(image='data:image/png;base64,@@@@'),
                     message='图片格式无效')
 
+    # 验证 _product_fields：Base64 能解但内容不是 PNG/JPEG 文件头（b'hello world'）被拒。
     def test_image_content_must_match_magic_bytes(self):
         fake = 'data:image/png;base64,' + base64.b64encode(b'hello world').decode()
         self.raises(_product_fields, self.payload(image=fake), message='图片内容无效或超过5MB')
 
+    # 验证 _product_fields：真实 5MB+ 的图片载荷超过上限被拒（按解码后的字节数判断）。
     def test_image_larger_than_five_megabytes_is_rejected(self):
         big = 'data:image/png;base64,' + base64.b64encode(
             b'\x89PNG\r\n\x1a\n' + b'x' * (5 * 1024 * 1024)).decode()
@@ -295,6 +331,7 @@ class TestInitDb(unittest.TestCase):
         self.path = Path(self.tmp.name) / 'nested' / 'campus.db'   # 故意多一层不存在的目录
         self.addCleanup(self.tmp.cleanup)
 
+    # 验证 init_db：自动建多级目录与表，写入 3 个演示账号和 6 件在售商品；二次启动不重复插入。
     def test_creates_schema_and_demo_data_once(self):
         init_db(str(self.path))
         self.assertTrue(self.path.exists())
@@ -307,6 +344,7 @@ class TestInitDb(unittest.TestCase):
             self.assertEqual(db.execute('SELECT count(*) FROM users').fetchone()[0], 3)
             self.assertEqual(db.execute('SELECT count(*) FROM products').fetchone()[0], 6)
 
+    # 验证 init_db：第二次启动保留用户改过的数据，不被演示数据覆盖。
     def test_keeps_data_created_after_the_first_start(self):
         init_db(str(self.path))
         with connect(str(self.path)) as db:
@@ -319,6 +357,7 @@ class TestInitDb(unittest.TestCase):
 class TestStatisticsAndRows(DbCase):
     """db.stats 的统计口径、db.rows 的返回形态、db.public_user 的字段裁剪。"""
 
+    # 验证 stats：只统计「已完成」订单；区间外为 0，未完成不计入完成数与成交额。
     def test_stats_counts_only_completed_orders_in_range(self):
         base = stats(self.db)
         self.assertEqual((base['completed'], base['amount'], base['products'], base['reports']), (0, 0, 6, 0))
@@ -328,11 +367,13 @@ class TestStatisticsAndRows(DbCase):
         self.assertEqual(stats(self.db)['amount'], price)
         self.assertEqual(stats(self.db, 0, now() - 3600)['completed'], 0)
 
+    # 验证 stats：成交额是区间内已完成订单价格之和（3500 + 6800 分）。
     def test_stats_amount_sums_completed_orders(self):
         self.completed(1)                            # 商品 1：3500 分
         self.completed(2)                            # 商品 2：6800 分
         self.assertEqual(stats(self.db)['amount'], 3500 + 6800)
 
+    # 验证 stats：待处理举报数不受时间区间影响，处理完变 0。
     def test_pending_reports_ignore_the_date_range(self):
         self.call('report', BUYER, {'id': 1, 'body': '物品内容需要核查'})
         self.assertEqual(stats(self.db, 0, now() - 3600)['reports'], 1)
@@ -340,12 +381,14 @@ class TestStatisticsAndRows(DbCase):
         self.call('handle_report', ADMIN, {'id': rid, 'reason': '内容已经核对并通知发布者'})
         self.assertEqual(stats(self.db)['reports'], 0)
 
+    # 验证 rows：返回普通 dict 列表（可直接 JSON 序列化），列名齐全。
     def test_rows_returns_plain_dicts(self):
         data = rows(self.db, 'SELECT id,title FROM products ORDER BY id')
         self.assertEqual(len(data), 6)
         self.assertIsInstance(data[0], dict)
         self.assertEqual(set(data[0]), {'id', 'title'})
 
+    # 验证 public_user：只保留 5 个对外字段，password 不出现。
     def test_public_user_hides_password(self):
         exposed = public_user(self.user(BUYER))
         self.assertEqual(set(exposed), {'id', 'student', 'name', 'role', 'banned_until'})
@@ -355,6 +398,7 @@ class TestStatisticsAndRows(DbCase):
 class TestNotificationDelivery(DbCase):
     """db.notify / db.deliver_notices：通知先入队，打开收件箱时才投递，失败可重试。"""
 
+    # 验证 notify/deliver_notices：先入队，打开收件箱时才投递并清空；只投给本人，重复投递不重复。
     def test_queue_is_delivered_once_and_only_to_its_owner(self):
         notify(self.db, BUYER, '订单 #1 已更新：confirm')
         self.db.commit()
@@ -366,6 +410,7 @@ class TestNotificationDelivery(DbCase):
         deliver_notices(self.db, BUYER)          # 再打开一次不应重复投递
         self.assertEqual(self.value('SELECT count(*) FROM notices'), 1)
 
+    # 验证 deliver_notices：用触发器让插入失败，投递回滚、队列保留；解除故障后重投成功。
     def test_failure_keeps_the_queue_and_next_delivery_succeeds(self):
         notify(self.db, BUYER, '待投递')
         self.db.commit()
@@ -387,20 +432,24 @@ class TestNotificationDelivery(DbCase):
 class TestLookupAndRoles(DbCase):
     """services.get / administrator / own_order：取对象与权限判断的公共前置。"""
 
+    # 验证 get：按 id 取对象，也支持自定义键名（如 order_id）。
     def test_get_reads_by_id_and_by_custom_key(self):
         self.assertEqual(services.get(self.db, {'id': 1}, 'products')['title'], '高等数学教材 全套')
         oid = self.accepted()
         self.assertEqual(services.get(self.db, {'order_id': oid}, 'orders', key='order_id')['id'], oid)
 
+    # 验证 get：查不到对象时抛「对象不存在」，不让 None 漏到业务层。
     def test_get_rejects_missing_object(self):
         self.assertEqual(self.raises(services.get, self.db, {'id': 9999}, 'products',
                                      message='对象不存在'), '对象不存在')
 
+    # 验证 administrator：只有 role=admin 通过；卖家、买家都抛「需要管理员权限」。
     def test_administrator_only_allows_admin_role(self):
         self.assertIsNone(services.administrator(self.user(ADMIN)))
         self.raises(services.administrator, self.user(SELLER), message='需要管理员权限')
         self.raises(services.administrator, self.user(BUYER), message='需要管理员权限')
 
+    # 验证 own_order：买卖双方都能取订单；第三方（含管理员）抛「不能操作他人订单」。
     def test_own_order_accepts_participants_and_rejects_outsiders(self):
         oid = self.new_order()
         self.assertEqual(services.own_order(self.db, self.user(BUYER), {'id': oid})['id'], oid)
@@ -412,15 +461,18 @@ class TestLookupAndRoles(DbCase):
 class TestActDispatch(DbCase):
     """services.act：封禁拦截、未知动作、EarlyReturn 跳过审计、审计字段裁剪。"""
 
+    # 验证 act：动作表里没有的动作名抛「未知操作」。
     def test_unknown_action_is_rejected(self):
         self.raises(act, self.db, self.user(BUYER), 'no_such_action', {}, message='未知操作')
 
+    # 验证 act：封禁期用户下单被拒，但 read_notices 仍可执行（不打断在途履约）。
     def test_banned_user_blocked_from_new_business_only(self):
         self.db.execute('UPDATE users SET banned_until=? WHERE id=?', (now() + 3600, BUYER))
         self.db.commit()
         self.raises(act, self.db, self.user(BUYER), 'order', {'id': 1}, message='账号处于封禁期')
         self.assertTrue(act(self.db, self.user(BUYER), 'read_notices', {})['ok'])
 
+    # 验证 act：同一买家重复下单走 EarlyReturn，返回「订单已存在」且不写审计（审计仍 1 条）。
     def test_early_return_skips_audit(self):
         self.assertTrue(act(self.db, self.user(BUYER), 'order', {'id': 1})['ok'])
         again = act(self.db, self.user(BUYER), 'order', {'id': 1})
@@ -429,6 +481,7 @@ class TestActDispatch(DbCase):
         self.assertEqual(self.value('SELECT count(*) FROM orders'), 1)
         self.assertEqual(self.value("SELECT count(*) FROM audit WHERE action='order'"), 1)
 
+    # 验证 act：审计剔除 image/password、超长内容截断到 2000 字，target 取 payload 里的 id。
     def test_audit_strips_sensitive_fields_and_truncates_detail(self):
         image = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\n' + b'x' * 32).decode()
         act(self.db, self.user(SELLER), 'publish',
@@ -442,6 +495,7 @@ class TestActDispatch(DbCase):
         self.assertLessEqual(len(detail), 2000)
         self.assertEqual(self.value("SELECT target FROM audit WHERE action='publish'"), 0)
 
+    # 验证 act：审计同时记录操作者、动作、目标与时间。
     def test_audit_records_actor_action_target_and_time(self):
         act(self.db, self.user(BUYER), 'order', {'id': 1})
         self.db.commit()
@@ -455,11 +509,13 @@ class TestActDispatch(DbCase):
 class TestProductRules(DbCase):
     """商品动作：发布、编辑、下架、审核、冻结。"""
 
+    # 验证 publish：入库状态为「待审核」，价格按分存（12.50→1250），卖家是本人。
     def test_publish_enters_pending_with_price_in_cents(self):
         pid = self.publish(price='12.50')
         product = self.db.execute('SELECT * FROM products WHERE id=?', (pid,)).fetchone()
         self.assertEqual((product['status'], product['price'], product['seller']), ('待审核', 1250, SELLER))
 
+    # 验证 edit：待审核不能改、非本人不能改；被驳回后可改，并回到待审核、清空驳回原因。
     def test_edit_requires_own_unfrozen_shelved_or_rejected_product(self):
         pid = self.publish()
         payload = {'id': pid, 'title': '修订键盘', 'description': '修改之后的一份完整键盘描述',
@@ -472,6 +528,7 @@ class TestProductRules(DbCase):
         self.assertEqual((product['status'], product['title'], product['reason']),
                          ('待审核', '修订键盘', ''))
 
+    # 验证 edit：没传新图片时沿用旧图片。
     def test_edit_keeps_the_old_image_when_new_one_is_empty(self):
         image = 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\n' + b'x' * 16).decode()
         pid = self.publish(image=image)
@@ -481,6 +538,7 @@ class TestProductRules(DbCase):
                                    'category': '数码电器', 'condition': '九成新', 'price': 89})
         self.assertEqual(self.value('SELECT image FROM products WHERE id=?', (pid,)), image)
 
+    # 验证 edit：被冻结的商品即使是本人也不能编辑。
     def test_frozen_product_cannot_be_edited(self):
         pid = self.publish()
         self.call('review_product', ADMIN, {'id': pid, 'approve': False, 'reason': '描述信息不足'})
@@ -489,6 +547,7 @@ class TestProductRules(DbCase):
                                        'category': '数码电器', 'condition': '八成新', 'price': 75},
                       '只能编辑本人未冻结的下架或驳回商品')
 
+    # 验证 shelve：只能下架本人在售商品；已被下单（已预订）的不能下架。
     def test_shelve_requires_own_on_sale_product(self):
         self.rejected('shelve', BUYER, {'id': 1}, '只能下架本人在售商品')
         self.new_order()                             # 商品 1 变成“已预订”
@@ -496,6 +555,7 @@ class TestProductRules(DbCase):
         self.call('shelve', SELLER, {'id': 2})
         self.assertEqual(self.value('SELECT status FROM products WHERE id=2'), '已下架')
 
+    # 验证 review_product：需管理员、待审核、approve 为 JSON 布尔；通过后转在售，重复审核被拒。
     def test_review_product_requires_admin_pending_state_and_boolean(self):
         pid = self.publish()
         self.rejected('review_product', BUYER, {'id': pid, 'approve': True, 'reason': '内容符合要求'},
@@ -507,6 +567,7 @@ class TestProductRules(DbCase):
         self.rejected('review_product', ADMIN, {'id': pid, 'approve': True, 'reason': '重复审核'},
                       '商品不是待审核状态')
 
+    # 验证 review_product：审核结果通过通知队列告知卖家。
     def test_review_result_notifies_seller_through_the_queue(self):
         pid = self.publish()
         self.call('review_product', ADMIN, {'id': pid, 'approve': False, 'reason': '图片与描述不一致'})
@@ -514,6 +575,7 @@ class TestProductRules(DbCase):
         self.assertEqual(self.last_notice(SELLER),
                          '商品处理结果已更新')
 
+    # 验证 freeze/unfreeze：冻结只置标记、不改底层状态；解冻后不会自动复售。
     def test_freeze_and_unfreeze_keep_status(self):
         self.new_order()                             # 商品 1 → 已预订
         self.call('freeze', ADMIN, {'id': 1, 'reason': '内容存在违规问题'})
@@ -530,6 +592,7 @@ class TestProductRules(DbCase):
 class TestOrderRules(DbCase):
     """下单与接单：独占、幂等、自购拦截、交付时间窗口。"""
 
+    # 验证 order：生成「待接单」订单、商品转「已预订」、卖家收到通知。
     def test_order_occupies_product_and_notifies_seller(self):
         oid = self.new_order()
         order = self.db.execute('SELECT * FROM orders WHERE id=?', (oid,)).fetchone()
@@ -538,11 +601,13 @@ class TestOrderRules(DbCase):
         self.assertEqual(self.last_notice(SELLER),
                          '有新订单，请接单或拒绝')
 
+    # 验证 order：第二个买手下单被拒（商品已被占用）。
     def test_second_buyer_cannot_occupy_the_same_product(self):
         self.new_order()
         other = self.add_user()
         self.rejected('order', other, {'id': 1}, '商品已被占用或不可交易')
 
+    # 验证 order：自购、冻结商品、封禁期卖家三种情况都拒绝下单。
     def test_own_product_frozen_product_and_banned_seller_are_rejected(self):
         self.rejected('order', SELLER, {'id': 1}, '不能购买自己的商品')
         self.call('freeze', ADMIN, {'id': 2, 'reason': '内容存在违规问题'})
@@ -551,6 +616,7 @@ class TestOrderRules(DbCase):
         self.db.commit()
         self.rejected('order', BUYER, {'id': 3}, '卖家账号处于封禁期')
 
+    # 验证 order：同一买家重复下单返回原订单（EarlyReturn），库里仍只有一单。
     def test_same_buyer_gets_the_existing_order_instead_of_a_second_one(self):
         oid = self.new_order()
         again = self.call('order', BUYER, {'id': 1})
@@ -558,6 +624,7 @@ class TestOrderRules(DbCase):
         self.assertEqual(again.payload['order_id'], oid)
         self.assertEqual(self.value('SELECT count(*) FROM orders'), 1)
 
+    # 验证 accept：交付时间在过去、超过下单后 72 小时、格式不对都被拒；合法时间才接单成功。
     def test_accept_requires_a_time_inside_the_72_hour_window(self):
         oid = self.new_order()
         for meeting, message in [
@@ -572,6 +639,7 @@ class TestOrderRules(DbCase):
         self.assertEqual(self.last_notice(BUYER),
                          '订单 #' + str(oid) + ' 已更新：accept')
 
+    # 验证 accept：卖家重复接单返回「订单已经接单」；买家接单被拒。
     def test_accept_is_idempotent_and_seller_only(self):
         oid = self.accepted()
         again = self.call('accept', SELLER, {'id': oid, 'place': '', 'meeting': ''})
@@ -580,6 +648,7 @@ class TestOrderRules(DbCase):
         self.rejected('accept', BUYER, {'id': oid, 'place': '图书馆门口', 'meeting': self.meeting()},
                       '只有卖家可接待接单订单')
 
+    # 验证 confirm：单方确认后仍「待交付」；双方确认后「已完成」、商品「已售出」、completed 有值。
     def test_single_confirmation_keeps_waiting_and_both_complete(self):
         oid = self.accepted()
         self.call('confirm', BUYER, {'id': oid})
@@ -592,6 +661,7 @@ class TestOrderRules(DbCase):
         self.assertGreater(order['completed'], 0)
         self.assertEqual(self.value('SELECT status FROM products WHERE id=1'), '已售出')
 
+    # 验证 confirm：重复确认不会改写完成时间（幂等）。
     def test_repeated_confirmation_does_not_change_completion_time(self):
         oid = self.completed()
         stamp = self.value('SELECT completed FROM orders WHERE id=?', (oid,))
@@ -599,10 +669,12 @@ class TestOrderRules(DbCase):
         self.call('confirm', BUYER, {'id': oid})
         self.assertEqual(self.value('SELECT completed FROM orders WHERE id=?', (oid,)), stamp)
 
+    # 验证 confirm：「待接单」的订单不能确认交付。
     def test_confirm_requires_waiting_delivery_state(self):
         oid = self.new_order()
         self.rejected('confirm', BUYER, {'id': oid}, '订单不可确认交付')
 
+    # 验证 cancel：订单转「已关闭」、商品回到「在售」；重复取消返回「订单已经关闭」。
     def test_cancel_closes_order_and_releases_product(self):
         oid = self.accepted()
         self.call('cancel', BUYER, {'id': oid})
@@ -610,6 +682,7 @@ class TestOrderRules(DbCase):
         self.assertEqual(self.value('SELECT status FROM products WHERE id=1'), '在售')
         self.assertEqual(self.call('cancel', BUYER, {'id': oid}).payload['message'], '订单已经关闭')
 
+    # 验证 cancel：已有一方确认禁止普通取消；封禁期用户也不能普通取消。
     def test_cancel_blocked_after_confirmation_and_for_banned_user(self):
         oid = self.accepted()
         self.call('confirm', BUYER, {'id': oid})
@@ -623,6 +696,7 @@ class TestOrderRules(DbCase):
 class TestWithdrawalAndDispute(DbCase):
     """撤回申请（2 小时窗口、唯一待审）与争议发起。"""
 
+    # 验证 withdraw：确认后 2 小时内可申请；同一订单第二次申请被拒（唯一待审）。
     def test_withdrawal_within_two_hours_and_duplicate_blocked(self):
         oid = self.completed()
         self.call('withdraw', BUYER, {'id': oid, 'body': '申请核查交付情况'})
@@ -632,16 +706,19 @@ class TestWithdrawalAndDispute(DbCase):
         self.rejected('withdraw', BUYER, {'id': oid, 'body': '重复申请'}, '已有撤回申请正在审核')
         self.rejected('withdraw', SELLER, {'id': oid, 'body': '卖家也申请'}, '已有撤回申请正在审核')
 
+    # 验证 withdraw：把确认时间改成 7201 秒前再申请，超 2 小时被拒。
     def test_withdrawal_after_two_hours_is_rejected(self):
         oid = self.completed()
         self.db.execute('UPDATE orders SET buyer_confirm=? WHERE id=?', (now() - 7201, oid))
         self.db.commit()
         self.rejected('withdraw', BUYER, {'id': oid, 'body': '超时申请'}, '须在本人确认后2小时内申请')
 
+    # 验证 withdraw：自己还没确认就申请撤回，被拒。
     def test_withdrawal_requires_own_confirmation(self):
         oid = self.accepted()
         self.rejected('withdraw', BUYER, {'id': oid, 'body': '还没确认'}, '须在本人确认后2小时内申请')
 
+    # 验证 dispute：只有「待交付」可直接发起（转争议处理中并记说明）；已完成、重复发起都拒绝。
     def test_dispute_only_from_waiting_delivery_state(self):
         oid = self.accepted()
         self.call('dispute', BUYER, {'id': oid, 'body': '商品未实际交接'})
@@ -656,6 +733,7 @@ class TestWithdrawalAndDispute(DbCase):
 class TestReviewRules(DbCase):
     """评价：仅已完成订单、评分 1—5、修改时保留历史。"""
 
+    # 验证 review：首次入库；改评价后旧评分进 review_history，reviews 只留一条新值。
     def test_review_is_saved_and_modified_with_history(self):
         oid = self.completed()
         self.call('review', BUYER, {'id': oid, 'rating': 4, 'body': '商品很好'})
@@ -664,6 +742,7 @@ class TestReviewRules(DbCase):
         self.assertEqual(self.value('SELECT rating FROM review_history'), 4)
         self.assertEqual(self.value('SELECT count(*) FROM reviews'), 1)
 
+    # 验证 review：评分 1—5 之外被拒；未完成订单、第三人评价都被拒。
     def test_rating_bounds_and_order_state(self):
         oid = self.completed()
         for rating in (0, 6, -1):
@@ -672,6 +751,7 @@ class TestReviewRules(DbCase):
         self.rejected('review', BUYER, {'id': waiting, 'rating': 5, 'body': '还没完成'}, '仅已完成订单可评价')
         self.rejected('review', ADMIN, {'id': oid, 'rating': 5, 'body': '第三人评价'}, '不能操作他人订单')
 
+    # 验证 review：评分传 'abc' 抛 ValueError（接口层统一映射 400），库里不产生评价。
     def test_rating_must_be_an_integer(self):
         oid = self.completed()
         with self.assertRaises(ValueError):          # 接口层把 ValueError 也映射成 400
@@ -685,12 +765,14 @@ class TestReviewRules(DbCase):
 class TestInteractionRules(DbCase):
     """收藏、咨询、举报各自的边界。"""
 
+    # 验证 favorite：按目标状态写入；连按两次收藏仍 1 条，连按两次取消为 0 条。
     def test_favorite_is_idempotent_per_target_state(self):
         for desired, expected in [(None, 1), (None, 1), (False, 0), (False, 0)]:
             payload = {'id': 1} if desired is None else {'id': 1, 'desired': desired}
             self.call('favorite', BUYER, payload)
             self.assertEqual(self.value('SELECT count(*) FROM favorites'), expected)
 
+    # 验证 message：买家发起咨询、卖家回复都入库，卖家收到「收到新的商品咨询」。
     def test_message_between_buyer_and_seller(self):
         self.call('message', BUYER, {'id': 1, 'receiver': SELLER, 'body': '请问可以校内交接吗？'})
         self.assertEqual(self.value('SELECT count(*) FROM messages'), 1)
@@ -699,6 +781,7 @@ class TestInteractionRules(DbCase):
         self.call('message', SELLER, {'id': 1, 'receiver': BUYER, 'body': '可以在图书馆交接'})
         self.assertEqual(self.value('SELECT count(*) FROM messages'), 2)
 
+    # 验证 message：不能主动群发、不能发给自己、必须关联卖家、接收人须存在、冻结商品拒绝新咨询。
     def test_message_rules(self):
         self.rejected('message', SELLER, {'id': 1, 'receiver': BUYER, 'body': '卖家主动群发'},
                       '只能回复已有咨询')
@@ -712,6 +795,7 @@ class TestInteractionRules(DbCase):
         self.rejected('message', BUYER, {'id': 1, 'receiver': SELLER, 'body': '冻结后咨询'},
                       '商品不接受新咨询')
 
+    # 验证 report：同一用户重复举报触发唯一索引 IntegrityError（接口层映射 409）。
     def test_report_is_unique_per_user_and_product(self):
         self.call('report', BUYER, {'id': 1, 'body': '物品内容需要核查'})
         self.assertEqual(self.value('SELECT status FROM reports'), '待处理')
@@ -723,6 +807,7 @@ class TestInteractionRules(DbCase):
 class TestAdminDisposition(DbCase):
     """管理员处置：封禁/解封、举报处理、撤回审批、争议裁定。"""
 
+    # 验证 ban：需管理员、至少 7 天、不能封管理员；封禁时间落在 now+7 天，理由进通知。
     def test_ban_requires_admin_reason_and_minimum_days(self):
         self.rejected('ban', SELLER, {'id': BUYER, 'reason': '违规处置', 'days': 7}, '需要管理员权限')
         self.rejected('ban', ADMIN, {'id': BUYER, 'reason': '违规处置', 'days': 6}, '封禁至少7天')
@@ -735,11 +820,13 @@ class TestAdminDisposition(DbCase):
         self.assertEqual(self.last_notice(BUYER),
                          '发布违规内容')
 
+    # 验证 unban：解封把 banned_until 归零。
     def test_unban_clears_the_ban_time(self):
         self.call('ban', ADMIN, {'id': BUYER, 'reason': '发布违规内容', 'days': 7})
         self.call('unban', ADMIN, {'id': BUYER, 'reason': '整改完成提前解封', 'days': 7})
         self.assertEqual(self.value('SELECT banned_until FROM users WHERE id=?', (BUYER,)), 0)
 
+    # 验证 handle_report：写结论与状态并通知举报人；非管理员被拒。
     def test_report_handling_records_result_and_notifies_author(self):
         self.call('report', BUYER, {'id': 1, 'body': '物品内容需要核查'})
         rid = self.value('SELECT max(id) FROM reports')
@@ -750,6 +837,7 @@ class TestAdminDisposition(DbCase):
         self.assertEqual(self.last_notice(BUYER),
                          '举报结果：内容已经核对并通知发布者')
 
+    # 验证 handle_withdrawal（批准）：订单转争议、该方确认清零、商品保持占用、原确认时间进历史表。
     def test_withdrawal_approval_moves_order_to_dispute(self):
         oid = self.completed()
         stamp = self.value('SELECT buyer_confirm FROM orders WHERE id=?', (oid,))
@@ -764,6 +852,7 @@ class TestAdminDisposition(DbCase):
         self.assertEqual(self.value('SELECT confirmed FROM confirmation_history'), stamp)  # 原确认时间留证
         self.assertEqual(self.value('SELECT status FROM withdrawals WHERE id=?', (wid,)), '已批准')
 
+    # 验证 handle_withdrawal（驳回）：只改申请单，订单仍「已完成」、确认时间不变；重复处理被拒。
     def test_withdrawal_rejection_keeps_order_untouched(self):
         oid = self.completed()
         stamp = self.value('SELECT buyer_confirm FROM orders WHERE id=?', (oid,))
@@ -778,6 +867,7 @@ class TestAdminDisposition(DbCase):
         self.rejected('handle_withdrawal', ADMIN, {'id': wid, 'approve': False, 'reason': '重复处理'},
                       '申请已处理')
 
+    # 验证 resolve：认定完成需「至少一方确认 + ≥10 字说明」；满足后订单已完成、商品已售出。
     def test_dispute_resolution_needs_confirmation_and_evidence(self):
         oid = self.accepted()                                     # 双方都还没确认
         self.call('dispute', SELLER, {'id': oid, 'body': '交付存在争议'})
@@ -796,6 +886,7 @@ class TestAdminDisposition(DbCase):
         self.assertGreater(order['completed'], 0)
         self.assertEqual(self.value('SELECT status FROM products WHERE id=2'), '已售出')
 
+    # 验证 resolve（关闭）：订单已关闭、completed 归零、商品回到「在售」。
     def test_dispute_close_releases_the_product(self):
         oid = self.accepted()
         self.call('dispute', BUYER, {'id': oid, 'body': '商品未实际交接'})
@@ -807,6 +898,7 @@ class TestAdminDisposition(DbCase):
         self.rejected('resolve', ADMIN, {'id': oid, 'complete': False, 'reason': '重复裁定'},
                       '订单不在争议中')
 
+    # 验证 read_notices：只把自己的通知标为已读，不影响别人的。
     def test_read_notices_marks_only_own_notices_seen(self):
         notify(self.db, BUYER, '订单 #1 已更新')
         notify(self.db, SELLER, '商品处理结果已更新')

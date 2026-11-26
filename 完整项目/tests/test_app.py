@@ -112,6 +112,7 @@ class PlatformTests(unittest.TestCase):
         """走完交付流程：接单 → 买家确认 → 卖家确认，使订单变为已完成。
         """
         self.accept(oid);self.ok(self.buyer,'confirm',{'id':oid});self.assertEqual(self.buyer.req('orders')[1]['orders'][0]['status'],'待交付');self.ok(self.seller,'confirm',{'id':oid})
+    # 验证注册：姓名为 null/数组/数字均返回 400，且学号没有写入数据库。
     def test_name_requires_text(self):
         for name in (None, [], 1234):
             status, _ = self.other.req('register', {'student':'20265555','name':name,'password':'Test123!'})
@@ -119,12 +120,14 @@ class PlatformTests(unittest.TestCase):
         with connect(self.db) as db:
             self.assertIsNone(db.execute("SELECT id FROM users WHERE student='20265555'").fetchone())
 
+    # 验证发布：价格传字符串 'Infinity' 返回 400，商品未入库。
     def test_price_requires_finite_value(self):
         product = {'title':'课程教材','description':'课程教材整套出售可以线下交付','price':'Infinity'}
         self.assertEqual(self.seller.req('publish', product)[0], 400)
         with connect(self.db) as db:
             self.assertIsNone(db.execute("SELECT id FROM products WHERE title='课程教材'").fetchone())
 
+    # 验证审核：approve 传字符串 "false" 返回 400，商品保持待审核（历史缺陷 Q03 的回归）。
     def test_approval_requires_boolean(self):
         product = {'title':'课程教材','description':'课程教材整套出售可以线下交付','price':10,'category':'教材','condition':'九成新'}
         self.ok(self.seller, 'publish', product)
@@ -132,12 +135,14 @@ class PlatformTests(unittest.TestCase):
         self.assertEqual(self.admin.req('review_product', {'id':pid,'approve':'false','reason':'资料不符'})[0], 400)
         self.assertEqual(self.seller.req('product?id='+str(pid))[1]['product']['status'], '待审核')
 
+    # 验证收藏：按目标状态幂等，连按两次收藏仍 1 条，连按两次取消为 0 条。
     def test_repeated_favorite_intent(self):
         for desired in (True, True, False, False):
             self.ok(self.buyer, 'favorite', {'id':1,'desired':desired})
             self.assertEqual(self.buyer.req('product?id=1')[1]['favorite'], desired)
             self.assertEqual(len(self.buyer.req('mine')[1]['favorites']), int(desired))
 
+    # 验证通知：注入通知表故障时下单仍成功、待办保留；恢复后两次打开收件箱只收到一条（历史缺陷 Q05 的回归）。
     def test_notice_failure_retries_once(self):
         with connect(self.db) as db:
             db.execute("CREATE TRIGGER fail_notice BEFORE INSERT ON notices BEGIN SELECT RAISE(ABORT,'injected'); END")
@@ -151,6 +156,7 @@ class PlatformTests(unittest.TestCase):
         for _ in range(2):
             self.assertEqual(len(self.seller.req('mine')[1]['notices']), 1)
 
+    # 验证撤回：争议中驳回申请不再报「订单状态已改变」，买家确认时间保持原值（历史缺陷 Q06 的回归）。
     def test_reject_withdrawal_during_dispute(self):
         oid = self.order()
         self.accept(oid)
