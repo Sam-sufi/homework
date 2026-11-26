@@ -56,7 +56,8 @@ async function detail(id){
     currentProduct=null;currentReviews=[];currentTagCounts=[];reviewTag='';
     const d=await api('product?id='+id),p=d.product;currentProduct=p;currentReviews=d.reviews||[];currentTagCounts=d.tag_counts||[];
     const orderButton=me?.id!==p.seller?(p.status==='在售'&&!p.frozen?button('order','下单并占用',id,''):''):p.status==='在售'?button('shelve','下架后编辑',id):['已下架','已驳回'].includes(p.status)?button('edit_form','编辑并重新提交',id):'';
-    const favoriteButton=['在售','已预订'].includes(p.status)&&!p.frozen?button('favorite','收藏 / 取消收藏',id):'';
+    const favoriteButton=['在售','已预订'].includes(p.status)&&!p.frozen
+        ? button('favorite', d.favorite ? '取消收藏' : '收藏', id, '', 'data-desired="'+(!d.favorite)+'"') : '';
     main.innerHTML=`<a href="#market" class="muted">← 返回闲置集市</a><div class="split detail"><div class="panel detail-art">${art(p)}</div><div class="panel"><span class="badge">${esc(p.category)} · ${esc(p.condition)}</span><h1>${esc(p.title)}</h1><div class="price">¥ ${money(p.price)}</div><p class="muted"><a href="#seller/${p.seller}" class="seller-link">${esc(p.seller_name)}</a> · ${esc(p.frozen?'违规冻结':p.status)}</p><div class="rating-summary"><span><small>商品评分</small> ${ratingLine(p.product_rating,p.product_rating_count)}</span><a href="#seller/${p.seller}" class="rating-summary-link"><small>商家评分</small> ${ratingLine(p.seller_rating,p.seller_rating_count)}</a></div><p class="details">${esc(p.description)}</p>${p.reason?`<p>处理说明：${esc(p.reason)}</p>`:''}<div class="actions">${orderButton}${favoriteButton}${button('report','举报',id)}</div><p class="muted">线下结算，约定校内地点交接；下单后卖家接单。</p></div></div><div class="panel"><h2>物品咨询</h2>${me?`<div id="messages"></div><form id="message" class="row" data-id="${id}"><label>接收人ID<input name="receiver" value="${p.seller}" type="number" required></label><label>咨询内容<input name="body" maxlength="1000" required placeholder="咨询成色、交接时间…"></label><button>发送消息</button></form><p class="muted">卖家回复时填写来信者的用户ID。聊天仅参与双方可见，每5秒更新。</p>`:'<a href="#login">登录后与卖家交流</a>'}</div><div class="panel review-panel"><div class="section-title"><h2>交易评价</h2><small>仅买家可评价卖家 · <a href="#seller/${p.seller}">查看卖家全部评价（${p.seller_rating_count||0}）</a></small></div><div id="tagfilter"></div><div id="reviewlist"></div></div>`;
     renderReviews();
     if(me){await messages(id);timer=setInterval(()=>messages(id).catch(()=>{}),5000)}
@@ -218,6 +219,7 @@ document.addEventListener('click',async e=>{
     if(b.dataset.action==='filter_tag'){reviewTag=b.dataset.tag||'';renderReviews();return}
     if(b.dataset.action==='seller_filter_tag'){sellerReviewTag=b.dataset.tag||'';renderSellerPage();return}
     const action=b.dataset.action;if(!action)return;if(!auth())return;const d={id:Number(b.dataset.id||0)};
+    if(action==='favorite') d.desired=b.dataset.desired==='true';
     try{
         if(action==='logout'){await api(action,{});await session();location.hash='market';await route();return}
         if(action==='history'){const r=await api('order_history?id='+d.id);alert('撤回历史：\n'+(r.confirmations.map(x=>'用户 '+x.user_id+' 原确认 '+date(x.confirmed)+'；撤回 '+date(x.revoked)+'；'+x.reason).join('\n')||'暂无撤回记录'));return}

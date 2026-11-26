@@ -20,7 +20,16 @@ class BusinessError(Exception):pass
 def need(condition,message):
     if not condition:raise BusinessError(message)
 def text(data,key,lo=1,hi=1000):
-    value=data.get(key,'');need(value is not None,f'{key}不能为空');value=str(value).strip();need(lo<=len(value)<=hi,f'{key}长度应为{lo}—{hi}字');return value
+    value = data.get(key)
+    need(isinstance(value, str), f'{key}必须是文本')
+    value = value.strip()
+    need(lo <= len(value) <= hi, f'{key}长度应为{lo}—{hi}字')
+    return value
+
+def boolean(data, key):
+    value = data.get(key)
+    need(isinstance(value, bool), f'{key}必须是布尔值')
+    return value
 class Database(sqlite3.Connection):
     def __exit__(self,*args):
         try:return super().__exit__(*args)
@@ -108,7 +117,19 @@ def seller_page(db,seller_id):
     review_rows=rows(db,"SELECT r.*,u.name author_name,o.product product_id,o.title product_title,o.completed,CASE WHEN p.id IS NOT NULL AND p.frozen=0 AND p.status IN ('在售','已预订','已售出') THEN 1 ELSE 0 END product_public FROM reviews r JOIN users u ON u.id=r.author JOIN orders o ON o.id=r.order_id LEFT JOIN products p ON p.id=o.product WHERE o.seller=? AND o.status='已完成' AND o.buyer=r.author AND r.hidden=0 ORDER BY r.created DESC,r.id DESC",(seller_id,))
     reviews=review_payloads(db,review_rows)
     return {'seller':{'id':seller['id'],'name':seller['name']},'stats':{'rating':summary['rating'],'review_count':summary['review_count'],'completed_count':completed_count,'active_count':len(active),'sold_count':len(sold)},'items':{'active':active,'sold':sold},'reviews':reviews,'tag_counts':review_tag_counts(reviews)}
-def notify(db,uid,body):db.execute('INSERT INTO notices(user_id,body,created) VALUES(?,?,?)',(uid,body,now()))
+def notify(db, uid, body):
+    db.execute('INSERT INTO notice_queue(user_id,body,created) VALUES(?,?,?)', (uid, body, now()))
+
+def deliver_notices(db, uid):
+    # Serialize concurrent inbox reads. Delivery and removal commit together.
+    db.execute('BEGIN IMMEDIATE')
+    try:
+        db.execute('INSERT INTO notices(user_id,body,created) SELECT user_id,body,created FROM notice_queue WHERE user_id=? ORDER BY id', (uid,))
+        db.execute('DELETE FROM notice_queue WHERE user_id=?', (uid,))
+        db.commit()
+    except (sqlite3.IntegrityError, sqlite3.OperationalError) as error:
+        db.rollback()
+        print('站内通知将在下次打开收件箱时重试', type(error).__name__)
 def stats(db,start=0,end=4102444800):
     data=dict(db.execute("SELECT count(*) completed,coalesce(sum(price),0) amount FROM orders WHERE status='已完成' AND completed BETWEEN ? AND ?",(start,end)).fetchone())
     data.update(products=db.execute('SELECT count(*) FROM products WHERE created BETWEEN ? AND ?',(start,end)).fetchone()[0],reports=db.execute("SELECT count(*) FROM reports WHERE status='待处理'").fetchone()[0],reviews=db.execute('SELECT count(*) FROM reviews').fetchone()[0],hidden_reviews=db.execute('SELECT count(*) FROM reviews WHERE hidden=1').fetchone()[0]);return data
@@ -125,7 +146,7 @@ def act(db,user,action,d):
     if action in ['publish','edit']:
         title=text(d,'title',2,50);desc=text(d,'description',10,1000);price=d.get('price')
         try:price=round(float(price)*100)
-        except (ValueError,TypeError):raise BusinessError('价格必须为数字')
+        except (ValueError,TypeError,OverflowError):raise BusinessError('价格必须为有限数字')
         need(0<price<=100000000,'价格必须大于0且不超过100万元');image=str(d.get('image',''))
         need(len(image)<=7500000,'图片不超过5MB')
         if image:
@@ -139,8 +160,11 @@ def act(db,user,action,d):
         else:db.execute('INSERT INTO products(seller,title,description,category,price,condition,status,image,created) VALUES(?,?,?,?,?,?,?,?,?)',(uid,title,desc,text(d,'category',1,30),price,text(d,'condition',1,20),'待审核',image,now()))
     elif action=='favorite':
         product=get('products');need(product['status'] in ['在售','已预订'] and not product['frozen'],'商品当前不可收藏')
-        if db.execute('SELECT 1 FROM favorites WHERE user_id=? AND product=?',(uid,product['id'])).fetchone():db.execute('DELETE FROM favorites WHERE user_id=? AND product=?',(uid,product['id']))
-        else:db.execute('INSERT INTO favorites VALUES(?,?)',(uid,product['id']))
+        desired = boolean(d, 'desired') if 'desired' in d else True
+        if desired:
+            db.execute('INSERT INTO favorites VALUES(?,?) ON CONFLICT(user_id,product) DO NOTHING', (uid, product['id']))
+        else:
+            db.execute('DELETE FROM favorites WHERE user_id=? AND product=?', (uid, product['id']))
     elif action=='message':
         product=get('products');receiver=int(d.get('receiver',product['seller']));need(receiver!=uid,'不能向自己发消息')
         need(uid==product['seller'] or receiver==product['seller'],'咨询必须关联商品卖家')
@@ -217,7 +241,10 @@ def act(db,user,action,d):
         else:
             administrator()
             if action=='review_product':
-                need(product['status']=='待审核','商品不是待审核状态');status='在售' if d.get('approve') else '已驳回';reason=text(d,'reason',2,500);db.execute('UPDATE products SET status=?,reason=? WHERE id=?',(status,reason,product['id']))
+                need(product['status']=='待审核','商品不是待审核状态')
+                status = '在售' if boolean(d, 'approve') else '已驳回'
+                reason = text(d, 'reason', 2, 500)
+                db.execute('UPDATE products SET status=?,reason=? WHERE id=?', (status, reason, product['id']))
             elif action=='freeze':db.execute('UPDATE products SET frozen=1,reason=? WHERE id=?',(text(d,'reason',2,500),product['id']))
             else:db.execute('UPDATE products SET frozen=0,reason=? WHERE id=?',(text(d,'reason',2,500),product['id']))
             notify(db,product['seller'],'商品处理结果已更新')
@@ -227,13 +254,16 @@ def act(db,user,action,d):
             obj=get('users');need(obj['role']!='admin','不能封禁管理员');days=int(d.get('days',7));need(days>=7,'封禁至少7天');db.execute('UPDATE users SET banned_until=? WHERE id=?',(now()+days*86400 if action=='ban' else 0,obj['id']));notify(db,obj['id'],reason)
         elif action=='handle_report':obj=get('reports');db.execute("UPDATE reports SET status='已处理',result=? WHERE id=?",(reason,obj['id']));notify(db,obj['author'],'举报结果：'+reason)
         elif action=='handle_withdrawal':
-            obj=get('withdrawals');need(obj['status']=='待审核','申请已处理');order=db.execute('SELECT * FROM orders WHERE id=?',(obj['order_id'],)).fetchone();need(order['status'] in ['待交付','已完成'],'订单状态已改变')
-            if d.get('approve'):
+            obj=get('withdrawals');need(obj['status']=='待审核','申请已处理')
+            approve = boolean(d, 'approve')
+            if approve:
+                order = db.execute('SELECT * FROM orders WHERE id=?', (obj['order_id'],)).fetchone()
+                need(order['status'] in ['待交付','已完成'],'订单状态已改变')
                 field='buyer_confirm' if obj['author']==order['buyer'] else 'seller_confirm';db.execute('INSERT INTO confirmation_history(order_id,user_id,confirmed,revoked,reason) VALUES(?,?,?,?,?)',(order['id'],obj['author'],order[field],now(),reason));db.execute(f"UPDATE orders SET status='争议处理中',{field}=0,note=? WHERE id=?",('撤回获批：'+reason,order['id']));db.execute("UPDATE products SET status='已预订' WHERE id=?",(order['product'],))
             db.execute('UPDATE withdrawals SET status=?,result=? WHERE id=?',('已批准' if d.get('approve') else '已驳回',reason,obj['id']));notify(db,obj['author'],'撤回处理：'+reason)
         else:
             order=get('orders');need(order['status']=='争议处理中','订单不在争议中')
-            if d.get('complete'):need((order['buyer_confirm'] or order['seller_confirm']) and len(reason)>=10,'认定完成需至少一方有效确认，并填写不少于10字的交付证据说明')
+            if boolean(d, 'complete'):need((order['buyer_confirm'] or order['seller_confirm']) and len(reason)>=10,'认定完成需至少一方有效确认，并填写不少于10字的交付证据说明')
             db.execute('UPDATE orders SET status=?,note=?,completed=? WHERE id=?',('已完成' if d.get('complete') else '已关闭',reason,now() if d.get('complete') else 0,order['id']));db.execute('UPDATE products SET status=? WHERE id=?',('已售出' if d.get('complete') else '在售',order['product']))
             notify(db,order['buyer'],'争议裁定：'+reason);notify(db,order['seller'],'争议裁定：'+reason)
     elif action=='read_notices':db.execute('UPDATE notices SET seen=1 WHERE user_id=?',(uid,))
@@ -271,13 +301,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send({'products':rows(db,sql,args)})
                 if url.path=='/api/product':
                     pid=int(q.get('id',0));obj=db.execute("SELECT p.*,u.name seller_name,(SELECT round(avg(r.rating)/10.0,1) FROM reviews r JOIN orders o ON o.id=r.order_id WHERE o.product=p.id AND r.author=o.buyer AND o.status='已完成' AND r.hidden=0) product_rating,(SELECT count(*) FROM reviews r JOIN orders o ON o.id=r.order_id WHERE o.product=p.id AND r.author=o.buyer AND o.status='已完成' AND r.hidden=0) product_rating_count,(SELECT round(avg(r.rating)/10.0,1) FROM reviews r JOIN orders o ON o.id=r.order_id WHERE o.seller=p.seller AND r.author=o.buyer AND o.status='已完成' AND r.hidden=0) seller_rating,(SELECT count(*) FROM reviews r JOIN orders o ON o.id=r.order_id WHERE o.seller=p.seller AND r.author=o.buyer AND o.status='已完成' AND r.hidden=0) seller_rating_count FROM products p JOIN users u ON u.id=p.seller WHERE p.id=?",(pid,)).fetchone();need(obj is not None,'商品不存在');need((not obj['frozen'] and obj['status'] in ['在售','已预订','已售出']) or (user and (user['role']=='admin' or user['id']==obj['seller'])),'商品不可见')
-                    reviews=product_reviews(db,pid);return self.send({'product':dict(obj),'reviews':reviews,'tag_counts':review_tag_counts(reviews)})
+                    favorite = bool(user and db.execute('SELECT 1 FROM favorites WHERE user_id=? AND product=?', (user['id'], pid)).fetchone())
+                    reviews=product_reviews(db,pid);return self.send({'product':dict(obj),'favorite':favorite,'reviews':reviews,'tag_counts':review_tag_counts(reviews)})
                 if url.path=='/api/seller':
                     return self.send(seller_page(db,int(q.get('id',0))))
                 if url.path=='/api/review_image':
                     image_id=int(q.get('id',0));image=db.execute("SELECT i.bytes,i.mime,r.hidden,o.status FROM review_images i JOIN reviews r ON r.id=i.review_id JOIN orders o ON o.id=r.order_id WHERE i.id=?",(image_id,)).fetchone();need(image is not None,'图片不存在');need((image['hidden']==0 and image['status']=='已完成') or (user and user['role']=='admin'),'图片不可见')
                     return self.send(image['bytes'],ctype=image['mime'])
                 need(user is not None,'请先登录')
+                if url.path=='/api/mine':
+                    deliver_notices(db, user['id'])
                 if url.path=='/api/mine':return self.send({'products':rows(db,'SELECT * FROM products WHERE seller=? ORDER BY id DESC',(user['id'],)),'favorites':rows(db,'SELECT p.* FROM favorites f JOIN products p ON p.id=f.product WHERE f.user_id=?',(user['id'],)),'notices':rows(db,'SELECT * FROM notices WHERE user_id=? ORDER BY id DESC LIMIT 100',(user['id'],))})
                 if url.path=='/api/orders':
                     order_rows=rows(db,'SELECT o.*,b.name buyer_name,s.name seller_name,p.frozen FROM orders o JOIN users b ON b.id=o.buyer JOIN users s ON s.id=o.seller JOIN products p ON p.id=o.product WHERE o.buyer=? OR o.seller=? ORDER BY o.id DESC',(user['id'],user['id']))
