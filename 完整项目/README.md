@@ -152,7 +152,11 @@ Python程序通过解释器运行，compileall完成语法及字节码编译检�
 
 ```
 完整项目/
-  app.py                服务端路由、业务事务与权限
+  app.py                启动入口：建库并启动HTTP服务
+  api.py                HTTP接口层：请求校验、路由与响应
+  services.py           业务规则层：各动作一个函数，act() 统一分发
+  db.py                 数据层：连接、建表、种子数据与查询辅助
+  core.py               通用工具：时间、密码散列、业务异常与输入校验
   run.py                启动入口
   schema.sql            表结构、外键及唯一占用索引
   backup.py             数据库备份
