@@ -89,6 +89,59 @@ class PlatformTests(unittest.TestCase):
         """走完交付流程：接单 → 买家确认 → 卖家确认，使订单变为已完成。
         """
         self.accept(oid);self.ok(self.buyer,'confirm',{'id':oid});self.assertEqual(self.buyer.req('orders')[1]['orders'][0]['status'],'待交付');self.ok(self.seller,'confirm',{'id':oid})
+    def test_name_requires_text(self):
+        for name in (None, [], 1234):
+            status, _ = self.other.req('register', {'student':'20265555','name':name,'password':'Test123!'})
+            self.assertEqual(status, 400)
+        with connect(self.db) as db:
+            self.assertIsNone(db.execute("SELECT id FROM users WHERE student='20265555'").fetchone())
+
+    def test_price_requires_finite_value(self):
+        product = {'title':'课程教材','description':'课程教材整套出售可以线下交付','price':'Infinity'}
+        self.assertEqual(self.seller.req('publish', product)[0], 400)
+        with connect(self.db) as db:
+            self.assertIsNone(db.execute("SELECT id FROM products WHERE title='课程教材'").fetchone())
+
+    def test_approval_requires_boolean(self):
+        product = {'title':'课程教材','description':'课程教材整套出售可以线下交付','price':10,'category':'教材','condition':'九成新'}
+        self.ok(self.seller, 'publish', product)
+        pid = self.seller.req('mine')[1]['products'][0]['id']
+        self.assertEqual(self.admin.req('review_product', {'id':pid,'approve':'false','reason':'资料不符'})[0], 400)
+        self.assertEqual(self.seller.req('product?id='+str(pid))[1]['product']['status'], '待审核')
+
+    def test_repeated_favorite_intent(self):
+        for desired in (True, True, False, False):
+            self.ok(self.buyer, 'favorite', {'id':1,'desired':desired})
+            self.assertEqual(self.buyer.req('product?id=1')[1]['favorite'], desired)
+            self.assertEqual(len(self.buyer.req('mine')[1]['favorites']), int(desired))
+
+    def test_notice_failure_retries_once(self):
+        with connect(self.db) as db:
+            db.execute("CREATE TRIGGER fail_notice BEFORE INSERT ON notices BEGIN SELECT RAISE(ABORT,'injected'); END")
+        self.order()
+        self.assertEqual(self.seller.req('mine')[1]['notices'], [])
+        with connect(self.db) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM orders').fetchone()[0], 1)
+            self.assertEqual(db.execute('SELECT status FROM products WHERE id=1').fetchone()[0], '已预订')
+            self.assertEqual(db.execute('SELECT count(*) FROM notice_queue').fetchone()[0], 1)
+            db.execute('DROP TRIGGER fail_notice')
+        for _ in range(2):
+            self.assertEqual(len(self.seller.req('mine')[1]['notices']), 1)
+
+    def test_reject_withdrawal_during_dispute(self):
+        oid = self.order()
+        self.accept(oid)
+        self.ok(self.buyer, 'confirm', {'id':oid})
+        self.ok(self.buyer, 'withdraw', {'id':oid,'body':'申请重新检查'})
+        wid = self.admin.req('admin')[1]['withdrawals'][0]['id']
+        self.ok(self.seller, 'dispute', {'id':oid,'body':'交付存在争议'})
+        before = self.buyer.req('orders')[1]['orders'][0]
+        self.ok(self.admin, 'handle_withdrawal', {'id':wid,'approve':False,'reason':'转入争议流程'})
+        after = self.buyer.req('orders')[1]['orders'][0]
+        self.assertEqual(after['status'], '争议处理中')
+        self.assertEqual(after['buyer_confirm'], before['buyer_confirm'])
+        self.assertEqual(self.admin.req('admin')[1]['withdrawals'][0]['status'], '已驳回')
+
     def test_registration_authentication_and_csrf(self):
         """注册、登录、CSRF 与登出。
 

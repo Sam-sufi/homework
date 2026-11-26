@@ -77,7 +77,7 @@ def need(condition, message):
 def text(data, key, lo=1, hi=1000):
     """读取并规整一个文本字段。
 
-    步骤: 取字段 → 转成字符串 → 去掉首尾空白 → 校验长度。
+    步骤: 取字段 → 校验字符串类型 → 去掉首尾空白 → 校验长度。
 
     参数:
         data  前端传来的 JSON 对象；
@@ -88,6 +88,14 @@ def text(data, key, lo=1, hi=1000):
     异常:
         长度不符时抛 BusinessError，例如「title长度应为2—50字」。
     """
-    value = str(data.get(key, '')).strip()
+    value = data.get(key)
+    need(isinstance(value, str), f'{key}必须是文本')
+    value = value.strip()
     need(lo <= len(value) <= hi, f'{key}长度应为{lo}—{hi}字')
+    return value
+
+
+def boolean(data, key):
+    value = data.get(key)
+    need(isinstance(value, bool), f'{key}必须是布尔值')
     return value

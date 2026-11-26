@@ -29,7 +29,7 @@ from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlsplit
 
 from core import ROOT, BusinessError, need, now, password_hash, text, valid_password
-from db import connect, public_user, rows, stats
+from db import connect, deliver_notices, public_user, rows, stats
 from services import act
 
 # 允许直接访问的静态文件，避免把整个 static 目录暴露出去
@@ -256,7 +256,8 @@ class Handler(BaseHTTPRequestHandler):
         need(obj is not None, '商品不存在')
         visible = (not obj['frozen'] and obj['status'] in ['在售', '已预订', '已售出'])
         need(visible or (user and (user['role'] == 'admin' or user['id'] == obj['seller'])), '商品不可见')
-        return self.send({'product': dict(obj), 'reviews': rows(db, PRODUCT_REVIEWS_SQL, (pid,))})
+        favorite = bool(user and db.execute('SELECT 1 FROM favorites WHERE user_id=? AND product=?', (user['id'], pid)).fetchone())
+        return self.send({'favorite': favorite, 'product': dict(obj), 'reviews': rows(db, PRODUCT_REVIEWS_SQL, (pid,))})
 
     def api_mine(self, db, user, query):
         """GET /api/mine —— 个人中心数据。
@@ -266,6 +267,7 @@ class Handler(BaseHTTPRequestHandler):
             favorites 我收藏的商品；
             notices   我的站内通知，最近 100 条，按 id 倒序。
         """
+        deliver_notices(db, user['id'])
         return self.send({
             'products': rows(db, 'SELECT * FROM products WHERE seller=? ORDER BY id DESC', (user['id'],)),
             'favorites': rows(db, 'SELECT p.* FROM favorites f JOIN products p ON p.id=f.product '

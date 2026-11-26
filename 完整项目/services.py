@@ -21,7 +21,7 @@ import base64
 import json
 import time
 
-from core import BusinessError, need, text, now
+from core import BusinessError, boolean, need, text, now
 from db import notify
 
 # 封禁用户不允许执行的“新增业务”动作
@@ -107,8 +107,8 @@ def _product_fields(payload):
     price = payload.get('price')
     try:
         price = round(float(price) * 100)
-    except (ValueError, TypeError):
-        raise BusinessError('价格必须为数字')
+    except (ValueError, TypeError, OverflowError):
+        raise BusinessError('价格必须为有限数字')
     need(0 < price <= 100000000, '价格必须大于0且不超过100万元')
     image = str(payload.get('image', ''))
     need(len(image) <= 7500000, '图片不超过5MB')
@@ -180,7 +180,7 @@ def review_product(db, user, payload):
     product = get(db, payload, 'products')
     administrator(user)
     need(product['status'] == '待审核', '商品不是待审核状态')
-    status = '在售' if payload.get('approve') else '已驳回'
+    status = '在售' if boolean(payload, 'approve') else '已驳回'
     db.execute('UPDATE products SET status=?,reason=? WHERE id=?',
                (status, text(payload, 'reason', 2, 500), product['id']))
     notify(db, product['seller'], '商品处理结果已更新')
@@ -215,18 +215,19 @@ def unfreeze_product(db, user, payload):
 # ---------- 收藏与咨询 ----------
 
 def favorite(db, user, payload):
-    """收藏 / 取消收藏（同一个动作，按当前是否已收藏切换）。
+    """收藏 / 取消收藏（按 desired 指定目标状态，省略时默认收藏）。
 
     前置: 商品在售或已预订，且未被冻结。
     写入: favorites 表插入或删除一行。
     """
     product = get(db, payload, 'products')
     need(product['status'] in ['在售', '已预订'] and not product['frozen'], '商品当前不可收藏')
-    if db.execute('SELECT 1 FROM favorites WHERE user_id=? AND product=?',
-                  (user['id'], product['id'])).fetchone():
-        db.execute('DELETE FROM favorites WHERE user_id=? AND product=?', (user['id'], product['id']))
+    desired = boolean(payload, 'desired') if 'desired' in payload else True
+    key = (user['id'], product['id'])
+    if desired:
+        db.execute('INSERT INTO favorites VALUES(?,?) ON CONFLICT(user_id,product) DO NOTHING', key)
     else:
-        db.execute('INSERT INTO favorites VALUES(?,?)', (user['id'], product['id']))
+        db.execute('DELETE FROM favorites WHERE user_id=? AND product=?', key)
 
 
 def send_message(db, user, payload):
@@ -493,9 +494,10 @@ def handle_withdrawal(db, user, payload):
     reason = text(payload, 'reason', 2, 500)
     obj = get(db, payload, 'withdrawals')
     need(obj['status'] == '待审核', '申请已处理')
-    order = db.execute('SELECT * FROM orders WHERE id=?', (obj['order_id'],)).fetchone()
-    need(order['status'] in ['待交付', '已完成'], '订单状态已改变')
-    if payload.get('approve'):
+    approve = boolean(payload, 'approve')
+    if approve:
+        order = db.execute('SELECT * FROM orders WHERE id=?', (obj['order_id'],)).fetchone()
+        need(order['status'] in ['待交付', '已完成'], '订单状态已改变')
         field = 'buyer_confirm' if obj['author'] == order['buyer'] else 'seller_confirm'
         db.execute('INSERT INTO confirmation_history(order_id,user_id,confirmed,revoked,reason) '
                    'VALUES(?,?,?,?,?)',
@@ -504,7 +506,7 @@ def handle_withdrawal(db, user, payload):
                    ('撤回获批：' + reason, order['id']))
         db.execute("UPDATE products SET status='已预订' WHERE id=?", (order['product'],))
     db.execute('UPDATE withdrawals SET status=?,result=? WHERE id=?',
-               ('已批准' if payload.get('approve') else '已驳回', reason, obj['id']))
+               ('已批准' if approve else '已驳回', reason, obj['id']))
     notify(db, obj['author'], '撤回处理：' + reason)
 
 
@@ -523,14 +525,15 @@ def resolve_dispute(db, user, payload):
     reason = text(payload, 'reason', 2, 500)
     order = get(db, payload, 'orders')
     need(order['status'] == '争议处理中', '订单不在争议中')
-    if payload.get('complete'):
+    complete = boolean(payload, 'complete')
+    if complete:
         need((order['buyer_confirm'] or order['seller_confirm']) and len(reason) >= 10,
              '认定完成需至少一方有效确认，并填写不少于10字的交付证据说明')
     db.execute('UPDATE orders SET status=?,note=?,completed=? WHERE id=?',
-               ('已完成' if payload.get('complete') else '已关闭', reason,
-                now() if payload.get('complete') else 0, order['id']))
+               ('已完成' if complete else '已关闭', reason,
+                now() if complete else 0, order['id']))
     db.execute('UPDATE products SET status=? WHERE id=?',
-               ('已售出' if payload.get('complete') else '在售', order['product']))
+               ('已售出' if complete else '在售', order['product']))
     notify(db, order['buyer'], '争议裁定：' + reason)
     notify(db, order['seller'], '争议裁定：' + reason)
 

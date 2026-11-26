@@ -99,17 +99,18 @@ def rows(db, sql, args=()):
 
 
 def notify(db, uid, body):
-    """写入一条站内通知（notices 表）。
+    db.execute('INSERT INTO notice_queue(user_id,body,created) VALUES(?,?,?)', (uid, body, now()))
 
-    参数:
-        uid  接收人用户 id；
-        body 通知正文。
-    说明:
-        已读/未读由 notices.seen 字段控制（read_notices 动作会置 1）；
-        业务动作需要提醒对方时调用，例如「有新订单，请接单或拒绝」。
-    """
-    db.execute('INSERT INTO notices(user_id,body,created) VALUES(?,?,?)', (uid, body, now()))
-
+def deliver_notices(db, uid):
+    # Serialize concurrent inbox reads. Delivery and removal commit together.
+    db.execute('BEGIN IMMEDIATE')
+    try:
+        db.execute('INSERT INTO notices(user_id,body,created) SELECT user_id,body,created FROM notice_queue WHERE user_id=? ORDER BY id', (uid,))
+        db.execute('DELETE FROM notice_queue WHERE user_id=?', (uid,))
+        db.commit()
+    except (sqlite3.IntegrityError, sqlite3.OperationalError) as error:
+        db.rollback()
+        print('站内通知将在下次打开收件箱时重试', type(error).__name__)
 
 def stats(db, start=0, end=4102444800):
     """统计后台仪表盘需要的数字。
