@@ -9,11 +9,31 @@
 运行:
 python -m unittest discover -s tests -v
 """
-import concurrent.futures,http.client,json,sys,tempfile,threading,time,unittest
+import concurrent.futures,csv,http.client,json,sys,tempfile,threading,time,unittest
 from urllib.parse import quote
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from app import create_server,connect,now
+
+def raw_get(port,path):
+    """直接发 GET，返回 (状态码, 正文, 响应头)。
+
+    静态页面与入口校验用例不需要登录态，用这个函数比 Client 更直观。
+    """
+    conn=http.client.HTTPConnection('127.0.0.1',port,timeout=15)
+    conn.request('GET',path);res=conn.getresponse();body=res.read()
+    status,headers=res.status,dict(res.getheaders());conn.close()
+    return status,body,headers
+
+def raw_post(port,path,body,headers):
+    """直接发 POST，返回 (状态码, 解析后的正文)。
+
+    请求头由调用方完全控制，用来构造 Content-Type、Origin、空正文等异常请求。
+    """
+    conn=http.client.HTTPConnection('127.0.0.1',port,timeout=15)
+    conn.request('POST',path,body,headers);res=conn.getresponse();raw=res.read()
+    ctype,status=res.getheader('Content-Type',''),res.status;conn.close()
+    return status,json.loads(raw) if 'json' in ctype else raw
 
 class Client:
     """极简 HTTP 客户端，模拟一个浏览器会话。
@@ -27,6 +47,7 @@ class Client:
         self.port = port
         self.cookie = ''
         self.csrf = ''
+        self.headers = {}
     def req(self,path,data=None,csrf=True):
         """发一个请求并解包响应。
 
@@ -37,13 +58,15 @@ class Client:
         返回:
             (状态码, 解析后的 JSON；非 JSON 响应则返回原始 bytes)
         副作用:
-            自动保存响应里的 Set-Cookie 与 csrf 令牌，供后续请求使用。
+            自动保存响应里的 Set-Cookie 与 csrf 令牌，供后续请求使用；
+            同时把本次响应的全部响应头存进 self.headers，便于检查安全头。
         """
         conn=http.client.HTTPConnection('127.0.0.1',self.port,timeout=15)
         headers={'Cookie':self.cookie}
         if data is not None:headers.update({'Content-Type':'application/json','X-CSRF-Token':self.csrf if csrf else ''})
         conn.request('POST' if data is not None else 'GET','/api/'+quote(path,safe='/?=&'),json.dumps(data) if data is not None else None,headers)
         res=conn.getresponse();raw=res.read();status=res.status
+        self.headers=dict(res.getheaders())
         if res.getheader('Set-Cookie'):self.cookie=res.getheader('Set-Cookie').split(';')[0]
         ctype=res.getheader('Content-Type','');conn.close();out=json.loads(raw) if 'json' in ctype else raw
         if isinstance(out,dict) and 'csrf' in out:self.csrf=out['csrf']
@@ -284,4 +307,133 @@ class PlatformTests(unittest.TestCase):
         self.ok(self.admin,'resolve',{'id':oid,'complete':False,'reason':'核查双方记录，确认商品没有完成交接'})
         self.assertEqual(self.buyer.req('product?id=1')[1]['product']['status'],'在售')
         self.assertEqual(self.seller.req('publish',{'title':'测试图片','description':'这是一份含有错误图片的商品描述','category':'其他闲置','condition':'全新','price':10,'image':'data:image/png;base64,aGVsbG8='})[0],400)
+    def test_export_csv_bom_header_and_formula_escape(self):
+        """导出 CSV 的内容：BOM、表头、金额换算与公式注入转义。
+
+        覆盖:
+            * 以 = 开头的商品名被加单引号，Excel 不会当公式执行；
+            * 金额由“分”换算成“元”（12.50 元 → 12.5）；
+            * 文件以 UTF-8 BOM 开头，Excel 打开中文不乱码；
+            * start/end 区间内没有已完成订单时只返回表头。
+        """
+        self.ok(self.seller,'publish',{'title':'=1+1 恶意标题','description':'用于验证导出转义的商品描述文字','category':'教材书籍','condition':'九成新','price':'12.50'})
+        pid=self.seller.req('mine')[1]['products'][0]['id']
+        self.ok(self.admin,'review_product',{'id':pid,'approve':True,'reason':'内容符合发布要求'})
+        oid=self.order(pid);self.complete(oid)
+        status,raw=self.admin.req('export')
+        self.assertEqual(status,200);self.assertTrue(raw.startswith('\ufeff'.encode()))
+        lines=raw.decode('utf-8-sig').splitlines()
+        self.assertEqual(lines[0],'订单编号,商品,约定金额（元）,完成时间')
+        row=list(csv.reader([lines[1]]))[0]
+        self.assertEqual(int(row[0]),oid);self.assertEqual(row[1],"'=1+1 恶意标题")
+        self.assertEqual(float(row[2]),12.5);self.assertTrue(row[3])
+        empty=self.admin.req('export?start=0&end=1')[1]
+        self.assertEqual(len(empty.decode('utf-8-sig').strip().splitlines()),1)
+    def test_login_lockout_after_five_failures(self):
+        """同一 IP + 学号连续 5 次失败后锁定，其他学号不受影响。
+
+        覆盖:
+            * 前 4 次失败提示“账号或密码错误”；
+            * 第 5 次失败后进入锁定，即使密码正确也提示“失败次数过多”；
+            * 换一个学号仍能正常登录。
+        """
+        client=Client(self.server.server_port)
+        for _ in range(4):
+            code,out=client.req('login',{'student':'20260002','password':'Wrong123!'})
+            self.assertEqual(code,400);self.assertIn('账号或密码错误',out['error'])
+        self.assertEqual(client.req('login',{'student':'20260002','password':'Wrong123!'})[0],400)
+        code,out=client.req('login',{'student':'20260002','password':'Buyer123!'})
+        self.assertEqual(code,400);self.assertIn('失败次数过多',out['error'])
+        self.assertEqual(client.req('login',{'student':'20260001','password':'Seller123!'})[0],200)
+    def test_security_headers_and_session_cookie(self):
+        """登录 Cookie 与会话响应的安全属性。
+
+        覆盖: HttpOnly、SameSite=Strict、Path、Max-Age 四个 Cookie 属性，
+        以及 X-Content-Type-Options、Cache-Control、CSP 三个响应头。
+        """
+        client=Client(self.server.server_port)
+        client.login('20260002','Buyer123!')
+        cookie=client.headers.get('Set-Cookie','')
+        for flag in ('HttpOnly','SameSite=Strict','Path=/','Max-Age=86400'):
+            self.assertIn(flag,cookie)
+        self.assertEqual(client.req('me')[0],200)
+        self.assertEqual(client.headers.get('X-Content-Type-Options'),'nosniff')
+        self.assertEqual(client.headers.get('Cache-Control'),'no-store')
+        self.assertIn("default-src 'self'",client.headers.get('Content-Security-Policy',''))
+    def test_static_pages_and_path_whitelist(self):
+        """静态页面可访问；白名单之外的路径一律 400，避免读到项目其他文件。"""
+        port=self.server.server_port
+        for path,ctype in [('/','text/html'),('/app.js','javascript'),('/style.css','text/css')]:
+            status,body,headers=raw_get(port,path)
+            self.assertEqual(status,200,path);self.assertIn(ctype,headers.get('Content-Type',''));self.assertTrue(body)
+        for path in ('/favicon.ico','/schema.sql','/api.py','/../api.py'):
+            status,body,_=raw_get(port,path)
+            self.assertEqual(status,400,path);self.assertIn('页面不存在',json.loads(body)['error'])
+    def test_request_guards(self):
+        """写请求入口校验：Content-Type、来源、体积、JSON 结构与未知动作。"""
+        port=self.server.server_port;json_head={'Content-Type':'application/json'}
+        status,out=raw_post(port,'/api/login',b'{"student":"admin"}',{'Content-Type':'text/plain'})
+        self.assertEqual((status,out['error']),(400,'请求必须为JSON'))
+        status,out=raw_post(port,'/api/login',b'{"student":"admin"}',dict(json_head,Origin='http://evil.example'))
+        self.assertEqual((status,out['error']),(400,'请求来源不匹配'))
+        status,out=raw_post(port,'/api/login',b'',json_head)
+        self.assertEqual((status,out['error']),(400,'请求内容过大'))
+        self.assertEqual(raw_post(port,'/api/login',b'{not json',json_head)[0],400)
+        status,out=raw_post(port,'/api/login',b'[]',json_head)
+        self.assertEqual((status,out['error']),(400,'JSON对象格式无效'))
+        status,out=raw_post(port,'/login',b'{}',json_head)
+        self.assertEqual((status,out['error']),(400,'接口不存在'))
+        status,out=self.buyer.req('no_such_action',{})
+        self.assertEqual((status,out['error']),(400,'未知操作'))
+    def test_products_filters_sort_and_seller_rating(self):
+        """集市列表：关键词、分类、价格区间、价格排序与卖家评分。"""
+        listed=self.buyer.req('products')[1]['products']
+        self.assertEqual(len(listed),6);self.assertTrue(all(p['rating'] is None for p in listed))
+        prices=[p['price'] for p in self.buyer.req('products?sort=price')[1]['products']]
+        self.assertEqual(prices,sorted(prices))
+        self.assertTrue(all(p['category']=='数码电器' for p in self.buyer.req('products?category=数码电器')[1]['products']))
+        ranged=self.buyer.req('products?min=18&max=90')[1]['products']
+        self.assertTrue(ranged and all(1800<=p['price']<=9000 for p in ranged))
+        found=self.buyer.req('products?q=交接')[1]['products']
+        self.assertTrue(found and all('交接' in (p['title']+p['description']) for p in found))
+        self.assertEqual(self.buyer.req('products?min=abc')[0],400)
+        oid=self.order();self.complete(oid);self.ok(self.buyer,'review',{'id':oid,'rating':5,'body':'完好'})
+        self.assertEqual(self.buyer.req('products')[1]['products'][0]['rating'],5.0)
+    def test_frozen_and_sold_products_visibility(self):
+        """商品可见性：已售出仍可看详情，冻结与下架只有管理员和卖家可见。"""
+        oid=self.order();self.complete(oid)
+        self.assertEqual(self.buyer.req('product?id=1')[1]['product']['status'],'已售出')
+        self.assertNotIn(1,[p['id'] for p in self.buyer.req('products')[1]['products']])
+        self.ok(self.admin,'freeze',{'id':2,'reason':'内容存在违规问题'})
+        self.assertEqual(self.buyer.req('product?id=2')[0],400)
+        self.assertEqual(self.seller.req('product?id=2')[0],200)
+        self.assertEqual(self.admin.req('product?id=2')[0],200)
+        self.ok(self.seller,'shelve',{'id':3})
+        self.assertEqual(self.buyer.req('product?id=3')[0],400)
+        self.assertEqual(self.buyer.req('product?id=999')[0],400)
+    def test_concurrent_duplicate_order_stays_single(self):
+        """同一买家并发重复下单：只生成一单，其余返回“订单已存在”而不是 409。
+
+        覆盖: BEGIN IMMEDIATE 把并发请求串行化，幂等分支先于“商品已占用”判断，
+        因此重复下单是成功响应而不是错误。
+        """
+        with concurrent.futures.ThreadPoolExecutor(4) as pool:
+            results=list(pool.map(lambda _:self.buyer.req('order',{'id':1}),range(4)))
+        self.assertTrue(all(code==200 for code,_ in results),[code for code,_ in results])
+        self.assertEqual([out.get('message') for _,out in results].count('订单已存在'),3)
+        with connect(self.db) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM orders WHERE product=1').fetchone()[0],1)
+    def test_route_permission_order_for_unknown_paths(self):
+        """路由顺序：公开 → 登录 → 管理员，最后才是“接口不存在”。"""
+        guest=Client(self.server.server_port)
+        self.assertEqual(guest.req('products')[0],200)
+        self.assertEqual(guest.req('mine')[0],400)
+        code,out=guest.req('no_such_path')
+        self.assertEqual((code,out['error']),(400,'请先登录'))
+        code,out=self.buyer.req('no_such_path')
+        self.assertEqual((code,out['error']),(400,'需要管理员权限'))
+        code,out=self.admin.req('no_such_path')
+        self.assertEqual((code,out['error']),(400,'接口不存在'))
+        self.assertEqual(self.buyer.req('admin')[0],400)
+        self.assertEqual(self.admin.req('admin')[0],200)
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -1,40 +1,377 @@
-实际验证日期：2026年11月6日
+校园拾集 测试结果（原始输出留存）
 
-test_cancel_releases_product_and_single_confirmation_blocks (test_app.PlatformTests.test_cancel_releases_product_and_single_confirmation_blocks) ... ok
-test_concurrent_order_only_one_wins (test_app.PlatformTests.test_concurrent_order_only_one_wins) ... ok
-test_confirm_idempotent_review_history (test_app.PlatformTests.test_confirm_idempotent_review_history) ... ok
-test_dispute_close_and_image_rejection (test_app.PlatformTests.test_dispute_close_and_image_rejection) ... ok
-test_favorites_and_private_messages (test_app.PlatformTests.test_favorites_and_private_messages) ... ok
-test_freeze_and_ban_keep_existing_fulfillment (test_app.PlatformTests.test_freeze_and_ban_keep_existing_fulfillment) ... ok
-test_publish_review_search_edit (test_app.PlatformTests.test_publish_review_search_edit) ... ok
-test_registration_authentication_and_csrf (test_app.PlatformTests.test_registration_authentication_and_csrf) ... ok
-test_report_and_admin_audit_csv (test_app.PlatformTests.test_report_and_admin_audit_csv) ... ok
-test_transaction_rollback_on_invalid_and_own_order (test_app.PlatformTests.test_transaction_rollback_on_invalid_and_own_order) ... ok
-test_withdraw_approval_statistics_and_resolution (test_app.PlatformTests.test_withdraw_approval_statistics_and_resolution) ... ok
-test_withdraw_timeout_and_rejection (test_app.PlatformTests.test_withdraw_timeout_and_rejection) ... ok
+执行日期：2026年11月26日
+测试基线：完整项目/ 目录 2026-11-26 代码快照；本轮只新增测试与文档，未修改产品代码。
+执行环境：Windows 11 家庭版 10.0.26300；Python 3.12.10（D:\code\machine_learning\.venv）；SQLite 3.49.1；PowerShell。
+说明     ：下列输出由 unittest TextTestRunner（verbosity=2）产生，末尾“耗时/用例/失败/错误/跳过”为本轮追加的汇总行。
+           用例使用临时数据库与随机端口，运行期间未改动 data/campus.db。
+
+================================================================================
+一、结果汇总
+================================================================================
+
+单元测试（78 项，2.7 秒，OK）
+  命令：python -m unittest discover -s tests -p "test_unit.py" -v
+
+集成测试（27 项，66.3 秒，OK）
+  命令：python -m unittest discover -s tests -p "test_app.py" -v
+
+全量回归第 1 轮（105 项，79.1 秒，OK）
+  命令：python -m unittest discover -s tests -v
+
+全量回归第 2 轮（105 项，72.5 秒，OK；用例集合与结果同第 1 轮）
+  命令：同上
+
+覆盖率用运行（105 项，63.6 秒，OK）
+  命令：python -m coverage run --branch --source=. -m unittest discover -s tests
+
+合计 105 项自动化用例：失败 0 项、错误 0 项、跳过 0 项。
+
+================================================================================
+二、单元测试原始输出（78 项）
+命令：python -m unittest discover -s tests -p "test_unit.py" -v
+================================================================================
+
+test_audit_records_actor_action_target_and_time (test_unit.TestActDispatch.test_audit_records_actor_action_target_and_time) ... ok
+test_audit_strips_sensitive_fields_and_truncates_detail (test_unit.TestActDispatch.test_audit_strips_sensitive_fields_and_truncates_detail) ... ok
+test_banned_user_blocked_from_new_business_only (test_unit.TestActDispatch.test_banned_user_blocked_from_new_business_only) ... ok
+test_early_return_skips_audit (test_unit.TestActDispatch.test_early_return_skips_audit) ... ok
+test_unknown_action_is_rejected (test_unit.TestActDispatch.test_unknown_action_is_rejected) ... ok
+test_ban_requires_admin_reason_and_minimum_days (test_unit.TestAdminDisposition.test_ban_requires_admin_reason_and_minimum_days) ... ok
+test_dispute_close_releases_the_product (test_unit.TestAdminDisposition.test_dispute_close_releases_the_product) ... ok
+test_dispute_resolution_needs_confirmation_and_evidence (test_unit.TestAdminDisposition.test_dispute_resolution_needs_confirmation_and_evidence) ... ok
+test_read_notices_marks_only_own_notices_seen (test_unit.TestAdminDisposition.test_read_notices_marks_only_own_notices_seen) ... ok
+test_report_handling_records_result_and_notifies_author (test_unit.TestAdminDisposition.test_report_handling_records_result_and_notifies_author) ... ok
+test_unban_clears_the_ban_time (test_unit.TestAdminDisposition.test_unban_clears_the_ban_time) ... ok
+test_withdrawal_approval_moves_order_to_dispute (test_unit.TestAdminDisposition.test_withdrawal_approval_moves_order_to_dispute) ... ok
+test_withdrawal_rejection_keeps_order_untouched (test_unit.TestAdminDisposition.test_withdrawal_rejection_keeps_order_untouched) ... ok
+test_boolean_accepts_only_json_booleans (test_unit.TestBooleanAndNeed.test_boolean_accepts_only_json_booleans) ... ok
+test_need_passes_and_raises_business_error (test_unit.TestBooleanAndNeed.test_need_passes_and_raises_business_error) ... ok
+test_now_returns_integer_seconds (test_unit.TestBooleanAndNeed.test_now_returns_integer_seconds) ... ok
+test_creates_schema_and_demo_data_once (test_unit.TestInitDb.test_creates_schema_and_demo_data_once) ... ok
+test_keeps_data_created_after_the_first_start (test_unit.TestInitDb.test_keeps_data_created_after_the_first_start) ... ok
+test_favorite_is_idempotent_per_target_state (test_unit.TestInteractionRules.test_favorite_is_idempotent_per_target_state) ... ok
+test_message_between_buyer_and_seller (test_unit.TestInteractionRules.test_message_between_buyer_and_seller) ... ok
+test_message_rules (test_unit.TestInteractionRules.test_message_rules) ... ok
+test_report_is_unique_per_user_and_product (test_unit.TestInteractionRules.test_report_is_unique_per_user_and_product) ... ok
+test_administrator_only_allows_admin_role (test_unit.TestLookupAndRoles.test_administrator_only_allows_admin_role) ... ok
+test_get_reads_by_id_and_by_custom_key (test_unit.TestLookupAndRoles.test_get_reads_by_id_and_by_custom_key) ... ok
+test_get_rejects_missing_object (test_unit.TestLookupAndRoles.test_get_rejects_missing_object) ... ok
+test_own_order_accepts_participants_and_rejects_outsiders (test_unit.TestLookupAndRoles.test_own_order_accepts_participants_and_rejects_outsiders) ... ok
+test_failure_keeps_the_queue_and_next_delivery_succeeds (test_unit.TestNotificationDelivery.test_failure_keeps_the_queue_and_next_delivery_succeeds) ... ok
+test_queue_is_delivered_once_and_only_to_its_owner (test_unit.TestNotificationDelivery.test_queue_is_delivered_once_and_only_to_its_owner) ... ok
+test_accept_is_idempotent_and_seller_only (test_unit.TestOrderRules.test_accept_is_idempotent_and_seller_only) ... ok
+test_accept_requires_a_time_inside_the_72_hour_window (test_unit.TestOrderRules.test_accept_requires_a_time_inside_the_72_hour_window) ... ok
+test_cancel_blocked_after_confirmation_and_for_banned_user (test_unit.TestOrderRules.test_cancel_blocked_after_confirmation_and_for_banned_user) ... ok
+test_cancel_closes_order_and_releases_product (test_unit.TestOrderRules.test_cancel_closes_order_and_releases_product) ... ok
+test_confirm_requires_waiting_delivery_state (test_unit.TestOrderRules.test_confirm_requires_waiting_delivery_state) ... ok
+test_order_occupies_product_and_notifies_seller (test_unit.TestOrderRules.test_order_occupies_product_and_notifies_seller) ... ok
+test_own_product_frozen_product_and_banned_seller_are_rejected (test_unit.TestOrderRules.test_own_product_frozen_product_and_banned_seller_are_rejected) ... ok
+test_repeated_confirmation_does_not_change_completion_time (test_unit.TestOrderRules.test_repeated_confirmation_does_not_change_completion_time) ... ok
+test_same_buyer_gets_the_existing_order_instead_of_a_second_one (test_unit.TestOrderRules.test_same_buyer_gets_the_existing_order_instead_of_a_second_one) ... ok
+test_second_buyer_cannot_occupy_the_same_product (test_unit.TestOrderRules.test_second_buyer_cannot_occupy_the_same_product) ... ok
+test_single_confirmation_keeps_waiting_and_both_complete (test_unit.TestOrderRules.test_single_confirmation_keeps_waiting_and_both_complete) ... ok
+test_hash_is_salt_and_digest_without_plain_text (test_unit.TestPasswordHash.test_hash_is_salt_and_digest_without_plain_text) ... ok
+test_same_password_gets_a_new_salt_each_time (test_unit.TestPasswordHash.test_same_password_gets_a_new_salt_each_time) ... ok
+test_unicode_password_round_trip (test_unit.TestPasswordHash.test_unicode_password_round_trip) ... ok
+test_verify_accepts_only_the_right_password (test_unit.TestPasswordHash.test_verify_accepts_only_the_right_password) ... ok
+test_verify_with_fixed_salt_is_reproducible (test_unit.TestPasswordHash.test_verify_with_fixed_salt_is_reproducible) ... ok
+test_empty_image_is_allowed (test_unit.TestProductFields.test_empty_image_is_allowed) ... ok
+test_image_base64_must_be_valid (test_unit.TestProductFields.test_image_base64_must_be_valid) ... ok
+test_image_content_must_match_magic_bytes (test_unit.TestProductFields.test_image_content_must_match_magic_bytes) ... ok
+test_image_larger_than_five_megabytes_is_rejected (test_unit.TestProductFields.test_image_larger_than_five_megabytes_is_rejected) ... ok
+test_image_prefix_must_be_png_or_jpeg (test_unit.TestProductFields.test_image_prefix_must_be_png_or_jpeg) ... ok
+test_png_and_jpeg_images_are_accepted (test_unit.TestProductFields.test_png_and_jpeg_images_are_accepted) ... ok
+test_price_is_converted_to_cents (test_unit.TestProductFields.test_price_is_converted_to_cents) ... ok
+test_price_must_be_finite (test_unit.TestProductFields.test_price_must_be_finite) ... ok
+test_price_must_be_positive_and_within_limit (test_unit.TestProductFields.test_price_must_be_positive_and_within_limit) ... ok
+test_title_and_description_bounds (test_unit.TestProductFields.test_title_and_description_bounds) ... ok
+test_edit_keeps_the_old_image_when_new_one_is_empty (test_unit.TestProductRules.test_edit_keeps_the_old_image_when_new_one_is_empty) ... ok
+test_edit_requires_own_unfrozen_shelved_or_rejected_product (test_unit.TestProductRules.test_edit_requires_own_unfrozen_shelved_or_rejected_product) ... ok
+test_freeze_and_unfreeze_keep_status (test_unit.TestProductRules.test_freeze_and_unfreeze_keep_status) ... ok
+test_frozen_product_cannot_be_edited (test_unit.TestProductRules.test_frozen_product_cannot_be_edited) ... ok
+test_publish_enters_pending_with_price_in_cents (test_unit.TestProductRules.test_publish_enters_pending_with_price_in_cents) ... ok
+test_review_product_requires_admin_pending_state_and_boolean (test_unit.TestProductRules.test_review_product_requires_admin_pending_state_and_boolean) ... ok
+test_review_result_notifies_seller_through_the_queue (test_unit.TestProductRules.test_review_result_notifies_seller_through_the_queue) ... ok
+test_shelve_requires_own_on_sale_product (test_unit.TestProductRules.test_shelve_requires_own_on_sale_product) ... ok
+test_rating_bounds_and_order_state (test_unit.TestReviewRules.test_rating_bounds_and_order_state) ... ok
+test_rating_must_be_an_integer (test_unit.TestReviewRules.test_rating_must_be_an_integer) ... ok
+test_review_is_saved_and_modified_with_history (test_unit.TestReviewRules.test_review_is_saved_and_modified_with_history) ... ok
+test_pending_reports_ignore_the_date_range (test_unit.TestStatisticsAndRows.test_pending_reports_ignore_the_date_range) ... ok
+test_public_user_hides_password (test_unit.TestStatisticsAndRows.test_public_user_hides_password) ... ok
+test_rows_returns_plain_dicts (test_unit.TestStatisticsAndRows.test_rows_returns_plain_dicts) ... ok
+test_stats_amount_sums_completed_orders (test_unit.TestStatisticsAndRows.test_stats_amount_sums_completed_orders) ... ok
+test_stats_counts_only_completed_orders_in_range (test_unit.TestStatisticsAndRows.test_stats_counts_only_completed_orders_in_range) ... ok
+test_bounds_are_inclusive (test_unit.TestTextRules.test_bounds_are_inclusive) ... ok
+test_length_is_measured_after_strip (test_unit.TestTextRules.test_length_is_measured_after_strip) ... ok
+test_rejects_missing_or_non_text (test_unit.TestTextRules.test_rejects_missing_or_non_text) ... ok
+test_returns_stripped_text (test_unit.TestTextRules.test_returns_stripped_text) ... ok
+test_dispute_only_from_waiting_delivery_state (test_unit.TestWithdrawalAndDispute.test_dispute_only_from_waiting_delivery_state) ... ok
+test_withdrawal_after_two_hours_is_rejected (test_unit.TestWithdrawalAndDispute.test_withdrawal_after_two_hours_is_rejected) ... ok
+test_withdrawal_requires_own_confirmation (test_unit.TestWithdrawalAndDispute.test_withdrawal_requires_own_confirmation) ... ok
+test_withdrawal_within_two_hours_and_duplicate_blocked (test_unit.TestWithdrawalAndDispute.test_withdrawal_within_two_hours_and_duplicate_blocked) ... ok
 
 ----------------------------------------------------------------------
-Ran 12 tests in 10.592s
+Ran 78 tests in 2.678s
 
 OK
 
-浏览器验证：Edge桌面1440像素及手机390像素；集市、登录、个人中心、订单空态、发布表单、管理员用户治理通过；无JavaScript运行异常，无手机页面横向溢出。
+耗时 2.7 秒；用例 78 项；失败 0 项；错误 0 项；跳过 0 项
 
-压缩包解压复验：在独立目录重新解压，Python字节码编译检查通过，12项HTTP集成测试再次全部通过。
-test_cancel_releases_product_and_single_confirmation_blocks (test_app.PlatformTests.test_cancel_releases_product_and_single_confirmation_blocks) ... ok
-test_concurrent_order_only_one_wins (test_app.PlatformTests.test_concurrent_order_only_one_wins) ... ok
-test_confirm_idempotent_review_history (test_app.PlatformTests.test_confirm_idempotent_review_history) ... ok
-test_dispute_close_and_image_rejection (test_app.PlatformTests.test_dispute_close_and_image_rejection) ... ok
-test_favorites_and_private_messages (test_app.PlatformTests.test_favorites_and_private_messages) ... ok
-test_freeze_and_ban_keep_existing_fulfillment (test_app.PlatformTests.test_freeze_and_ban_keep_existing_fulfillment) ... ok
-test_publish_review_search_edit (test_app.PlatformTests.test_publish_review_search_edit) ... ok
-test_registration_authentication_and_csrf (test_app.PlatformTests.test_registration_authentication_and_csrf) ... ok
-test_report_and_admin_audit_csv (test_app.PlatformTests.test_report_and_admin_audit_csv) ... ok
-test_transaction_rollback_on_invalid_and_own_order (test_app.PlatformTests.test_transaction_rollback_on_invalid_and_own_order) ... ok
-test_withdraw_approval_statistics_and_resolution (test_app.PlatformTests.test_withdraw_approval_statistics_and_resolution) ... ok
-test_withdraw_timeout_and_rejection (test_app.PlatformTests.test_withdraw_timeout_and_rejection) ... ok
+================================================================================
+三、集成测试原始输出（27 项）
+命令：python -m unittest discover -s tests -p "test_app.py" -v
+================================================================================
+
+test_approval_requires_boolean (test_app.PlatformTests.test_approval_requires_boolean) ... ok
+test_cancel_releases_product_and_single_confirmation_blocks (test_app.PlatformTests.test_cancel_releases_product_and_single_confirmation_blocks)
+取消释放占用；单方确认后禁止普通取消。 ... ok
+test_concurrent_duplicate_order_stays_single (test_app.PlatformTests.test_concurrent_duplicate_order_stays_single)
+同一买家并发重复下单：只生成一单，其余返回“订单已存在”而不是 409。 ... ok
+test_concurrent_order_only_one_wins (test_app.PlatformTests.test_concurrent_order_only_one_wins)
+并发下单：两人同时抢同一商品，只允许一单成功。 ... ok
+test_confirm_idempotent_review_history (test_app.PlatformTests.test_confirm_idempotent_review_history)
+确认幂等、评价可改并留历史、统计口径。 ... ok
+test_dispute_close_and_image_rejection (test_app.PlatformTests.test_dispute_close_and_image_rejection)
+争议关闭后的商品状态，以及图片校验。 ... ok
+test_export_csv_bom_header_and_formula_escape (test_app.PlatformTests.test_export_csv_bom_header_and_formula_escape)
+导出 CSV 的内容：BOM、表头、金额换算与公式注入转义。 ... ok
+test_favorites_and_private_messages (test_app.PlatformTests.test_favorites_and_private_messages)
+收藏与私有咨询。 ... ok
+test_freeze_and_ban_keep_existing_fulfillment (test_app.PlatformTests.test_freeze_and_ban_keep_existing_fulfillment)
+冻结商品、封禁账号不影响已有订单履约。 ... ok
+test_frozen_and_sold_products_visibility (test_app.PlatformTests.test_frozen_and_sold_products_visibility)
+商品可见性：已售出仍可看详情，冻结与下架只有管理员和卖家可见。 ... ok
+test_login_lockout_after_five_failures (test_app.PlatformTests.test_login_lockout_after_five_failures)
+同一 IP + 学号连续 5 次失败后锁定，其他学号不受影响。 ... ok
+test_name_requires_text (test_app.PlatformTests.test_name_requires_text) ... ok
+test_notice_failure_retries_once (test_app.PlatformTests.test_notice_failure_retries_once) ... ok
+test_price_requires_finite_value (test_app.PlatformTests.test_price_requires_finite_value) ... ok
+test_products_filters_sort_and_seller_rating (test_app.PlatformTests.test_products_filters_sort_and_seller_rating)
+集市列表：关键词、分类、价格区间、价格排序与卖家评分。 ... ok
+test_publish_review_search_edit (test_app.PlatformTests.test_publish_review_search_edit)
+发布 → 审核 → 搜索 → 下架 → 编辑的完整链路。 ... ok
+test_registration_authentication_and_csrf (test_app.PlatformTests.test_registration_authentication_and_csrf)
+注册、登录、CSRF 与登出。 ... ok
+test_reject_withdrawal_during_dispute (test_app.PlatformTests.test_reject_withdrawal_during_dispute) ... ok
+test_repeated_favorite_intent (test_app.PlatformTests.test_repeated_favorite_intent) ... ok
+test_report_and_admin_audit_csv (test_app.PlatformTests.test_report_and_admin_audit_csv)
+举报去重、后台处理、审计与导出权限。 ... ok
+test_request_guards (test_app.PlatformTests.test_request_guards)
+写请求入口校验：Content-Type、来源、体积、JSON 结构与未知动作。 ... ok
+test_route_permission_order_for_unknown_paths (test_app.PlatformTests.test_route_permission_order_for_unknown_paths)
+路由顺序：公开 → 登录 → 管理员，最后才是“接口不存在”。 ... ok
+test_security_headers_and_session_cookie (test_app.PlatformTests.test_security_headers_and_session_cookie)
+登录 Cookie 与会话响应的安全属性。 ... ok
+test_static_pages_and_path_whitelist (test_app.PlatformTests.test_static_pages_and_path_whitelist)
+静态页面可访问；白名单之外的路径一律 400，避免读到项目其他文件。 ... ok
+test_transaction_rollback_on_invalid_and_own_order (test_app.PlatformTests.test_transaction_rollback_on_invalid_and_own_order)
+非法请求不留下半成品（事务回滚）。 ... ok
+test_withdraw_approval_statistics_and_resolution (test_app.PlatformTests.test_withdraw_approval_statistics_and_resolution)
+撤回批准的影响，以及争议裁定后的恢复。 ... ok
+test_withdraw_timeout_and_rejection (test_app.PlatformTests.test_withdraw_timeout_and_rejection)
+撤回的两个边界：超时与驳回。 ... ok
 
 ----------------------------------------------------------------------
-Ran 12 tests in 10.657s
+Ran 27 tests in 66.270s
 
 OK
+
+耗时 66.3 秒；用例 27 项；失败 0 项；错误 0 项；跳过 0 项
+
+================================================================================
+四、全量回归第 1 轮原始输出（105 项 = 27 集成 + 78 单元）
+命令：python -m unittest discover -s tests -v
+================================================================================
+
+test_approval_requires_boolean (test_app.PlatformTests.test_approval_requires_boolean) ... ok
+test_cancel_releases_product_and_single_confirmation_blocks (test_app.PlatformTests.test_cancel_releases_product_and_single_confirmation_blocks)
+取消释放占用；单方确认后禁止普通取消。 ... ok
+test_concurrent_duplicate_order_stays_single (test_app.PlatformTests.test_concurrent_duplicate_order_stays_single)
+同一买家并发重复下单：只生成一单，其余返回“订单已存在”而不是 409。 ... ok
+test_concurrent_order_only_one_wins (test_app.PlatformTests.test_concurrent_order_only_one_wins)
+并发下单：两人同时抢同一商品，只允许一单成功。 ... ok
+test_confirm_idempotent_review_history (test_app.PlatformTests.test_confirm_idempotent_review_history)
+确认幂等、评价可改并留历史、统计口径。 ... ok
+test_dispute_close_and_image_rejection (test_app.PlatformTests.test_dispute_close_and_image_rejection)
+争议关闭后的商品状态，以及图片校验。 ... ok
+test_export_csv_bom_header_and_formula_escape (test_app.PlatformTests.test_export_csv_bom_header_and_formula_escape)
+导出 CSV 的内容：BOM、表头、金额换算与公式注入转义。 ... ok
+test_favorites_and_private_messages (test_app.PlatformTests.test_favorites_and_private_messages)
+收藏与私有咨询。 ... ok
+test_freeze_and_ban_keep_existing_fulfillment (test_app.PlatformTests.test_freeze_and_ban_keep_existing_fulfillment)
+冻结商品、封禁账号不影响已有订单履约。 ... ok
+test_frozen_and_sold_products_visibility (test_app.PlatformTests.test_frozen_and_sold_products_visibility)
+商品可见性：已售出仍可看详情，冻结与下架只有管理员和卖家可见。 ... ok
+test_login_lockout_after_five_failures (test_app.PlatformTests.test_login_lockout_after_five_failures)
+同一 IP + 学号连续 5 次失败后锁定，其他学号不受影响。 ... ok
+test_name_requires_text (test_app.PlatformTests.test_name_requires_text) ... ok
+test_notice_failure_retries_once (test_app.PlatformTests.test_notice_failure_retries_once) ... ok
+test_price_requires_finite_value (test_app.PlatformTests.test_price_requires_finite_value) ... ok
+test_products_filters_sort_and_seller_rating (test_app.PlatformTests.test_products_filters_sort_and_seller_rating)
+集市列表：关键词、分类、价格区间、价格排序与卖家评分。 ... ok
+test_publish_review_search_edit (test_app.PlatformTests.test_publish_review_search_edit)
+发布 → 审核 → 搜索 → 下架 → 编辑的完整链路。 ... ok
+test_registration_authentication_and_csrf (test_app.PlatformTests.test_registration_authentication_and_csrf)
+注册、登录、CSRF 与登出。 ... ok
+test_reject_withdrawal_during_dispute (test_app.PlatformTests.test_reject_withdrawal_during_dispute) ... ok
+test_repeated_favorite_intent (test_app.PlatformTests.test_repeated_favorite_intent) ... ok
+test_report_and_admin_audit_csv (test_app.PlatformTests.test_report_and_admin_audit_csv)
+举报去重、后台处理、审计与导出权限。 ... ok
+test_request_guards (test_app.PlatformTests.test_request_guards)
+写请求入口校验：Content-Type、来源、体积、JSON 结构与未知动作。 ... ok
+test_route_permission_order_for_unknown_paths (test_app.PlatformTests.test_route_permission_order_for_unknown_paths)
+路由顺序：公开 → 登录 → 管理员，最后才是“接口不存在”。 ... ok
+test_security_headers_and_session_cookie (test_app.PlatformTests.test_security_headers_and_session_cookie)
+登录 Cookie 与会话响应的安全属性。 ... ok
+test_static_pages_and_path_whitelist (test_app.PlatformTests.test_static_pages_and_path_whitelist)
+静态页面可访问；白名单之外的路径一律 400，避免读到项目其他文件。 ... ok
+test_transaction_rollback_on_invalid_and_own_order (test_app.PlatformTests.test_transaction_rollback_on_invalid_and_own_order)
+非法请求不留下半成品（事务回滚）。 ... ok
+test_withdraw_approval_statistics_and_resolution (test_app.PlatformTests.test_withdraw_approval_statistics_and_resolution)
+撤回批准的影响，以及争议裁定后的恢复。 ... ok
+test_withdraw_timeout_and_rejection (test_app.PlatformTests.test_withdraw_timeout_and_rejection)
+撤回的两个边界：超时与驳回。 ... ok
+test_audit_records_actor_action_target_and_time (test_unit.TestActDispatch.test_audit_records_actor_action_target_and_time) ... ok
+test_audit_strips_sensitive_fields_and_truncates_detail (test_unit.TestActDispatch.test_audit_strips_sensitive_fields_and_truncates_detail) ... ok
+test_banned_user_blocked_from_new_business_only (test_unit.TestActDispatch.test_banned_user_blocked_from_new_business_only) ... ok
+test_early_return_skips_audit (test_unit.TestActDispatch.test_early_return_skips_audit) ... ok
+test_unknown_action_is_rejected (test_unit.TestActDispatch.test_unknown_action_is_rejected) ... ok
+test_ban_requires_admin_reason_and_minimum_days (test_unit.TestAdminDisposition.test_ban_requires_admin_reason_and_minimum_days) ... ok
+test_dispute_close_releases_the_product (test_unit.TestAdminDisposition.test_dispute_close_releases_the_product) ... ok
+test_dispute_resolution_needs_confirmation_and_evidence (test_unit.TestAdminDisposition.test_dispute_resolution_needs_confirmation_and_evidence) ... ok
+test_read_notices_marks_only_own_notices_seen (test_unit.TestAdminDisposition.test_read_notices_marks_only_own_notices_seen) ... ok
+test_report_handling_records_result_and_notifies_author (test_unit.TestAdminDisposition.test_report_handling_records_result_and_notifies_author) ... ok
+test_unban_clears_the_ban_time (test_unit.TestAdminDisposition.test_unban_clears_the_ban_time) ... ok
+test_withdrawal_approval_moves_order_to_dispute (test_unit.TestAdminDisposition.test_withdrawal_approval_moves_order_to_dispute) ... ok
+test_withdrawal_rejection_keeps_order_untouched (test_unit.TestAdminDisposition.test_withdrawal_rejection_keeps_order_untouched) ... ok
+test_boolean_accepts_only_json_booleans (test_unit.TestBooleanAndNeed.test_boolean_accepts_only_json_booleans) ... ok
+test_need_passes_and_raises_business_error (test_unit.TestBooleanAndNeed.test_need_passes_and_raises_business_error) ... ok
+test_now_returns_integer_seconds (test_unit.TestBooleanAndNeed.test_now_returns_integer_seconds) ... ok
+test_creates_schema_and_demo_data_once (test_unit.TestInitDb.test_creates_schema_and_demo_data_once) ... ok
+test_keeps_data_created_after_the_first_start (test_unit.TestInitDb.test_keeps_data_created_after_the_first_start) ... ok
+test_favorite_is_idempotent_per_target_state (test_unit.TestInteractionRules.test_favorite_is_idempotent_per_target_state) ... ok
+test_message_between_buyer_and_seller (test_unit.TestInteractionRules.test_message_between_buyer_and_seller) ... ok
+test_message_rules (test_unit.TestInteractionRules.test_message_rules) ... ok
+test_report_is_unique_per_user_and_product (test_unit.TestInteractionRules.test_report_is_unique_per_user_and_product) ... ok
+test_administrator_only_allows_admin_role (test_unit.TestLookupAndRoles.test_administrator_only_allows_admin_role) ... ok
+test_get_reads_by_id_and_by_custom_key (test_unit.TestLookupAndRoles.test_get_reads_by_id_and_by_custom_key) ... ok
+test_get_rejects_missing_object (test_unit.TestLookupAndRoles.test_get_rejects_missing_object) ... ok
+test_own_order_accepts_participants_and_rejects_outsiders (test_unit.TestLookupAndRoles.test_own_order_accepts_participants_and_rejects_outsiders) ... ok
+test_failure_keeps_the_queue_and_next_delivery_succeeds (test_unit.TestNotificationDelivery.test_failure_keeps_the_queue_and_next_delivery_succeeds) ... ok
+test_queue_is_delivered_once_and_only_to_its_owner (test_unit.TestNotificationDelivery.test_queue_is_delivered_once_and_only_to_its_owner) ... ok
+test_accept_is_idempotent_and_seller_only (test_unit.TestOrderRules.test_accept_is_idempotent_and_seller_only) ... ok
+test_accept_requires_a_time_inside_the_72_hour_window (test_unit.TestOrderRules.test_accept_requires_a_time_inside_the_72_hour_window) ... ok
+test_cancel_blocked_after_confirmation_and_for_banned_user (test_unit.TestOrderRules.test_cancel_blocked_after_confirmation_and_for_banned_user) ... ok
+test_cancel_closes_order_and_releases_product (test_unit.TestOrderRules.test_cancel_closes_order_and_releases_product) ... ok
+test_confirm_requires_waiting_delivery_state (test_unit.TestOrderRules.test_confirm_requires_waiting_delivery_state) ... ok
+test_order_occupies_product_and_notifies_seller (test_unit.TestOrderRules.test_order_occupies_product_and_notifies_seller) ... ok
+test_own_product_frozen_product_and_banned_seller_are_rejected (test_unit.TestOrderRules.test_own_product_frozen_product_and_banned_seller_are_rejected) ... ok
+test_repeated_confirmation_does_not_change_completion_time (test_unit.TestOrderRules.test_repeated_confirmation_does_not_change_completion_time) ... ok
+test_same_buyer_gets_the_existing_order_instead_of_a_second_one (test_unit.TestOrderRules.test_same_buyer_gets_the_existing_order_instead_of_a_second_one) ... ok
+test_second_buyer_cannot_occupy_the_same_product (test_unit.TestOrderRules.test_second_buyer_cannot_occupy_the_same_product) ... ok
+test_single_confirmation_keeps_waiting_and_both_complete (test_unit.TestOrderRules.test_single_confirmation_keeps_waiting_and_both_complete) ... ok
+test_hash_is_salt_and_digest_without_plain_text (test_unit.TestPasswordHash.test_hash_is_salt_and_digest_without_plain_text) ... ok
+test_same_password_gets_a_new_salt_each_time (test_unit.TestPasswordHash.test_same_password_gets_a_new_salt_each_time) ... ok
+test_unicode_password_round_trip (test_unit.TestPasswordHash.test_unicode_password_round_trip) ... ok
+test_verify_accepts_only_the_right_password (test_unit.TestPasswordHash.test_verify_accepts_only_the_right_password) ... ok
+test_verify_with_fixed_salt_is_reproducible (test_unit.TestPasswordHash.test_verify_with_fixed_salt_is_reproducible) ... ok
+test_empty_image_is_allowed (test_unit.TestProductFields.test_empty_image_is_allowed) ... ok
+test_image_base64_must_be_valid (test_unit.TestProductFields.test_image_base64_must_be_valid) ... ok
+test_image_content_must_match_magic_bytes (test_unit.TestProductFields.test_image_content_must_match_magic_bytes) ... ok
+test_image_larger_than_five_megabytes_is_rejected (test_unit.TestProductFields.test_image_larger_than_five_megabytes_is_rejected) ... ok
+test_image_prefix_must_be_png_or_jpeg (test_unit.TestProductFields.test_image_prefix_must_be_png_or_jpeg) ... ok
+test_png_and_jpeg_images_are_accepted (test_unit.TestProductFields.test_png_and_jpeg_images_are_accepted) ... ok
+test_price_is_converted_to_cents (test_unit.TestProductFields.test_price_is_converted_to_cents) ... ok
+test_price_must_be_finite (test_unit.TestProductFields.test_price_must_be_finite) ... ok
+test_price_must_be_positive_and_within_limit (test_unit.TestProductFields.test_price_must_be_positive_and_within_limit) ... ok
+test_title_and_description_bounds (test_unit.TestProductFields.test_title_and_description_bounds) ... ok
+test_edit_keeps_the_old_image_when_new_one_is_empty (test_unit.TestProductRules.test_edit_keeps_the_old_image_when_new_one_is_empty) ... ok
+test_edit_requires_own_unfrozen_shelved_or_rejected_product (test_unit.TestProductRules.test_edit_requires_own_unfrozen_shelved_or_rejected_product) ... ok
+test_freeze_and_unfreeze_keep_status (test_unit.TestProductRules.test_freeze_and_unfreeze_keep_status) ... ok
+test_frozen_product_cannot_be_edited (test_unit.TestProductRules.test_frozen_product_cannot_be_edited) ... ok
+test_publish_enters_pending_with_price_in_cents (test_unit.TestProductRules.test_publish_enters_pending_with_price_in_cents) ... ok
+test_review_product_requires_admin_pending_state_and_boolean (test_unit.TestProductRules.test_review_product_requires_admin_pending_state_and_boolean) ... ok
+test_review_result_notifies_seller_through_the_queue (test_unit.TestProductRules.test_review_result_notifies_seller_through_the_queue) ... ok
+test_shelve_requires_own_on_sale_product (test_unit.TestProductRules.test_shelve_requires_own_on_sale_product) ... ok
+test_rating_bounds_and_order_state (test_unit.TestReviewRules.test_rating_bounds_and_order_state) ... ok
+test_rating_must_be_an_integer (test_unit.TestReviewRules.test_rating_must_be_an_integer) ... ok
+test_review_is_saved_and_modified_with_history (test_unit.TestReviewRules.test_review_is_saved_and_modified_with_history) ... ok
+test_pending_reports_ignore_the_date_range (test_unit.TestStatisticsAndRows.test_pending_reports_ignore_the_date_range) ... ok
+test_public_user_hides_password (test_unit.TestStatisticsAndRows.test_public_user_hides_password) ... ok
+test_rows_returns_plain_dicts (test_unit.TestStatisticsAndRows.test_rows_returns_plain_dicts) ... ok
+test_stats_amount_sums_completed_orders (test_unit.TestStatisticsAndRows.test_stats_amount_sums_completed_orders) ... ok
+test_stats_counts_only_completed_orders_in_range (test_unit.TestStatisticsAndRows.test_stats_counts_only_completed_orders_in_range) ... ok
+test_bounds_are_inclusive (test_unit.TestTextRules.test_bounds_are_inclusive) ... ok
+test_length_is_measured_after_strip (test_unit.TestTextRules.test_length_is_measured_after_strip) ... ok
+test_rejects_missing_or_non_text (test_unit.TestTextRules.test_rejects_missing_or_non_text) ... ok
+test_returns_stripped_text (test_unit.TestTextRules.test_returns_stripped_text) ... ok
+test_dispute_only_from_waiting_delivery_state (test_unit.TestWithdrawalAndDispute.test_dispute_only_from_waiting_delivery_state) ... ok
+test_withdrawal_after_two_hours_is_rejected (test_unit.TestWithdrawalAndDispute.test_withdrawal_after_two_hours_is_rejected) ... ok
+test_withdrawal_requires_own_confirmation (test_unit.TestWithdrawalAndDispute.test_withdrawal_requires_own_confirmation) ... ok
+test_withdrawal_within_two_hours_and_duplicate_blocked (test_unit.TestWithdrawalAndDispute.test_withdrawal_within_two_hours_and_duplicate_blocked) ... ok
+
+----------------------------------------------------------------------
+Ran 105 tests in 79.063s
+
+OK
+
+耗时 79.1 秒；用例 105 项；失败 0 项；错误 0 项；跳过 0 项
+
+--------------------------------------------------------------------------------
+全量回归第 2 轮（逐条结果与第 1 轮一致，此处只留结尾汇总）
+--------------------------------------------------------------------------------
+
+----------------------------------------------------------------------
+Ran 105 tests in 72.529s
+
+OK
+
+耗时 72.5 秒；用例 105 项；失败 0 项；错误 0 项；跳过 0 项
+
+================================================================================
+五、覆盖率（coverage.py 7.17.5，分支模式；仅测量用，项目运行不依赖）
+命令：python -m coverage run --branch --source=. -m unittest discover -s tests
+      python -m coverage report -m --omit="tests/*"
+================================================================================
+
+Name          Stmts   Miss Branch BrPart  Cover   Missing
+---------------------------------------------------------
+api.py          187      6     28      0    97%   181-183, 439-441
+app.py           11      0      0      0   100%
+backup.py        17     17      4      0     0%   6-28
+core.py          27      0      2      0   100%
+db.py            43      0      6      0   100%
+run.py           15     15      2      0     0%   6-26
+services.py     236      0     26      0   100%
+---------------------------------------------------------
+TOTAL           536     38     68      0    93%
+
+总体覆盖率: 92.7%
+
+未覆盖说明：
+  api.py 181-183、439-441：GET/POST 的 500 兜底分支，只在出现非业务异常时执行。
+  backup.py 6-28、run.py 6-26：两个命令行入口脚本，测试不导入也不执行。
+  业务核心 core + db + services + app 合计 317 条语句、34 个分支，覆盖率 100%。
+
+
+================================================================================
+六、说明
+================================================================================
+
+1. 输出中的“站内通知将在下次打开收件箱时重试 IntegrityError”是 TC-27 故意注入
+   通知表故障时程序打印的提示，属于预期行为，不是测试失败。
+2. 两轮全量的用例集合与结果完全一致，说明用例可重复执行。
+3. 详细的测试设计、缺陷与观察、文档同步建议见同目录《测试报告.md》。
+4. 复现方式：在“完整项目”目录执行上述命令；覆盖率需先 pip install coverage。
+
+
+================================================================================
+七、历史记录（保留自原 测试结果.txt，本轮未重复执行）
+================================================================================
+
+2026年11月6日：
+浏览器验证：Edge桌面1440像素及手机390像素；集市、登录、个人中心、订单空态、
+发布表单、管理员用户治理通过；无JavaScript运行异常，无手机页面横向溢出。
+压缩包解压复验：在独立目录重新解压，Python字节码编译检查通过，12项HTTP集成
+测试再次全部通过。
